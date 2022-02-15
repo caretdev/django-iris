@@ -121,7 +121,9 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         'SlugField': 'VARCHAR(%(max_length)s)',
         'SmallAutoField': 'SMALLINT AUTO_INCREMENT',
         'SmallIntegerField': 'SMALLINT',
-        'TextField': 'LONG',
+        # 'TextField': 'LONG',
+        # Stream not supported yet by db-api
+        'TextField': 'VARCHAR(255)',
         'TimeField': 'TIME(6)',
         'UUIDField': 'CHAR(32)',
     }
@@ -162,19 +164,19 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     ops_class = DatabaseOperations
 
     def get_connection_params(self):
-        kwargs = {
-            'hostname': 'localhost',
-            'port': 1972,
-            'namespace': 'USER',
-            'username': '_SYSTEM',
-            'password': 'SYS'
-        }
-        return kwargs
+        settings_dict = self.settings_dict
+
+        conn_params = {}
+        if settings_dict['USER']:
+            conn_params['username'] = settings_dict['USER']
+        if settings_dict['PASSWORD']:
+            conn_params['password'] = settings_dict['PASSWORD']
+        if settings_dict['CONNECTION_STRING']:
+            conn_params['connectionstr'] = settings_dict['CONNECTION_STRING']
+        return conn_params
 
     @async_unsafe
     def get_new_connection(self, conn_params):
-        # print(Database)
-        # print(Database.__dict__)
         return Database.connect(**conn_params)
 
     def init_connection_state(self):
@@ -187,4 +189,10 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         return CursorWrapper(cursor)
 
     def is_usable(self):
-        return True
+        try:
+            with self.connection.cursor() as cursor:
+                cursor.execute('SELECT 1')
+        except:
+            return False
+        else:
+            return True
