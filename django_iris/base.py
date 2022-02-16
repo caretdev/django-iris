@@ -1,24 +1,34 @@
 from django.db.backends.base.base import BaseDatabaseWrapper
 from django.db.backends.base.client import BaseDatabaseClient
 from django.db.backends.base.creation import BaseDatabaseCreation
-from django.db.backends.base.introspection import BaseDatabaseIntrospection
-from django.db.backends.base.operations import BaseDatabaseOperations
-
-from django.db.backends.base.introspection import (
-    BaseDatabaseIntrospection, FieldInfo as BaseFieldInfo, TableInfo,
-)
-
+from django.core.exceptions import ImproperlyConfigured
 from django.utils.asyncio import async_unsafe
-
+from django.utils.functional import cached_property
 
 from .introspection import DatabaseIntrospection
 from .features import DatabaseFeatures
 from .schema import DatabaseSchemaEditor
 from .operations import DatabaseOperations
+from .cursor import CursorWrapper
 
+from django.db import DataError
 
 import iris as Database
 import traceback
+
+
+Database.Warning = type("StandardError", (object,), {})
+Database.Error = type("StandardError", (object,), {})
+
+Database.InterfaceError = type("Error", (object,), {})
+
+Database.DatabaseError = type("Error", (object,), {})
+Database.DataError = type("DatabaseError", (object,), {})
+Database.OperationalError = type("DatabaseError", (object,), {})
+Database.IntegrityError = type("DatabaseError", (object,), {})
+Database.InternalError = type("DatabaseError", (object,), {})
+Database.ProgrammingError = type("DatabaseError", (object,), {})
+Database.NotSupportedError = type("DatabaseError", (object,), {})
 
 
 def ignore(*args, **kwargs):
@@ -32,64 +42,6 @@ class DatabaseClient(BaseDatabaseClient):
 class DatabaseCreation(BaseDatabaseCreation):
     create_test_db = ignore
     destroy_test_db = ignore
-
-
-class CursorWrapper:
-    def __init__(self, cursor):
-        self.cursor = cursor
-
-    def _fix_for_params(self, query, params):
-        if query.endswith(';'):
-            query = query[:-1]
-        if params is None:
-            params = []
-        elif hasattr(params, 'keys'):
-            # Handle params as dict
-            args = {k: "?" % k for k in params}
-            query = query % args
-        else:
-            # Handle params as sequence
-            args = ['?' for i in range(len(params))]
-            query = query % tuple(args)
-        return query, list(params)
-
-    def execute(self, query, params=None):
-        self.times = 0
-        query, params = self._fix_for_params(query, params)
-        # print(query, params)
-        self.cursor.execute(query, params)
-
-    def executemany(self, query, params=None):
-        # print(query, params)
-        self.times = 0
-        query, params = self._fix_for_params(query, params)
-        self.cursor.executemany(query, params)
-
-    def close(self):
-        self.cursor.close()
-
-    def __getattr__(self, attr):
-        return getattr(self.cursor, attr)
-
-    def __iter__(self):
-        return iter(self.cursor)
-
-    def fetchall(self):
-        rows = self.cursor.fetchall()
-        rows = [tuple(r) for r in rows]
-        return rows
-
-    def fetchmany(self, size=None):
-        # workaround for endless loop
-        if self.times > 0:
-            return []
-        self.times += 1
-        rows = self.cursor.fetchmany(size)
-        rows = [tuple(r) for r in rows]
-        return rows
-
-    def fetchone(self):
-        return tuple(self.cursor.fetchone())
 
 
 class DatabaseWrapper(BaseDatabaseWrapper):
@@ -166,13 +118,50 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     def get_connection_params(self):
         settings_dict = self.settings_dict
 
-        conn_params = {}
+        conn_params = {
+            'username': None,
+            'password': None,
+        }
         if settings_dict['USER']:
             conn_params['username'] = settings_dict['USER']
         if settings_dict['PASSWORD']:
             conn_params['password'] = settings_dict['PASSWORD']
-        if settings_dict['CONNECTION_STRING']:
+
+        if 'CONNECTION_STRING' in settings_dict:
             conn_params['connectionstr'] = settings_dict['CONNECTION_STRING']
+        else:
+            conn_params = {
+                'hostname': 'localhost',
+                'port': 1972,
+                'namespace': 'USER',
+                **conn_params,
+            }
+            if settings_dict['HOST']:
+                conn_params['hostname'] = settings_dict['HOST']
+            if settings_dict['PORT']:
+                conn_params['port'] = settings_dict['PORT']
+            if 'NAMESPACE' in settings_dict:
+                conn_params['namespace'] = settings_dict['NAMESPACE']
+
+            if (
+                not conn_params['hostname'] or
+                not conn_params['port'] or
+                not conn_params['namespace']
+            ):
+                raise ImproperlyConfigured(
+                    "settings.DATABASES is improperly configured. "
+                    "Please supply the HOST, PORT and NAMESPACE"
+                )
+
+        if (
+            not conn_params['username'] or
+            not conn_params['password']
+        ):
+            raise ImproperlyConfigured(
+                "settings.DATABASES is improperly configured. "
+                "Please supply the USER and PASSWORD"
+            )
+
         return conn_params
 
     @async_unsafe
@@ -184,7 +173,6 @@ class DatabaseWrapper(BaseDatabaseWrapper):
 
     @async_unsafe
     def create_cursor(self, name=None):
-        # return self.connection.cursor(factory=CursorWrapper)
         cursor = self.connection.cursor()
         return CursorWrapper(cursor)
 

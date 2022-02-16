@@ -3,6 +3,7 @@ from django.db.backends.base.operations import BaseDatabaseOperations
 from django.utils import timezone
 from itertools import chain
 
+
 class DatabaseOperations(BaseDatabaseOperations):
     def quote_name(self, name):
         return name
@@ -20,13 +21,14 @@ class DatabaseOperations(BaseDatabaseOperations):
             if settings.USE_TZ:
                 value = timezone.make_naive(value, self.connection.timezone)
             else:
-                raise ValueError("IRIS backend does not support timezone-aware datetimes when USE_TZ is False.")
+                raise ValueError(
+                    "IRIS backend does not support timezone-aware datetimes when USE_TZ is False.")
         return str(value).split("+")[0]
 
     def last_insert_id(self, cursor, table_name, pk_name):
         cursor.execute("SELECT TOP 1 %(pk)s FROM %(table)s ORDER BY %(pk)s DESC" % {
-          'table': table_name, 
-          'pk': pk_name,
+            'table': table_name,
+            'pk': pk_name,
         })
         return cursor.fetchone()[0]
 
@@ -34,7 +36,8 @@ class DatabaseOperations(BaseDatabaseOperations):
         if tables and allow_cascade:
             # Simulate TRUNCATE CASCADE by recursively collecting the tables
             # referencing the tables to be flushed.
-            tables = set(chain.from_iterable(self._references_graph(table) for table in tables))
+            tables = set(chain.from_iterable(
+                self._references_graph(table) for table in tables))
         sql = ['%s %s %s;' % (
             style.SQL_KEYWORD('DELETE'),
             style.SQL_KEYWORD('FROM'),
