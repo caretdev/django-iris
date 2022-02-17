@@ -6,7 +6,9 @@ from django.db.backends.base.introspection import (
 from django.db.models import Index
 from django.utils.datastructures import OrderedSet
 
-FieldInfo = namedtuple('FieldInfo', BaseFieldInfo._fields + ('auto_increment', ))
+FieldInfo = namedtuple(
+    'FieldInfo', BaseFieldInfo._fields + ('auto_increment', ))
+
 
 class DatabaseIntrospection(BaseDatabaseIntrospection):
     data_types_reverse = {
@@ -100,8 +102,18 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         representing all relationships to the given table.
         """
         # Dictionary of relations to return
-        relations = {}
-        return relations
+        cursor.execute("""
+            SELECT column_name, referenced_column_name, referenced_table_name
+            FROM information_schema.key_column_usage
+            WHERE table_schema = %s
+                AND table_name = %s
+                AND referenced_table_name IS NOT NULL
+                AND referenced_column_name IS NOT NULL
+        """, ['SQLUser', table_name])
+        return {
+            field_name: (other_field, other_table)
+            for field_name, other_field, other_table in cursor.fetchall()
+        }
 
     # def get_primary_key_column(self, cursor, table_name):
     #     """
@@ -129,8 +141,73 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         if they don't name constraints of a certain type (e.g. SQLite)
         """
         constraints = {}
+        # Get the actual constraint names and columns
+        name_query = """
+            SELECT kc.constraint_name, kc.column_name,
+                kc.referenced_table_name, kc.referenced_column_name,
+                c.constraint_type
+            FROM
+                information_schema.key_column_usage AS kc,
+                information_schema.table_constraints AS c
+            WHERE
+                kc.table_schema = %s AND
+                c.table_schema = kc.table_schema AND
+                c.constraint_name = kc.constraint_name AND
+                c.constraint_type != 'CHECK' AND
+                kc.table_name = %s
+            ORDER BY kc.ordinal_position
+        """
+        cursor.execute(name_query, ['SQLUser', table_name])
+        for constraint, column, ref_table, ref_column, kind in cursor.fetchall():
+            if constraint not in constraints:
+                constraints[constraint] = {
+                    'columns': OrderedSet(),
+                    'primary_key': kind == 'PRIMARY KEY',
+                    'unique': kind in {'PRIMARY KEY', 'UNIQUE'},
+                    'index': False,
+                    'check': False,
+                    'foreign_key': (ref_table, ref_column) if ref_column else None,
+                }
+                if self.connection.features.supports_index_column_ordering:
+                    constraints[constraint]['orders'] = []
+            constraints[constraint]['columns'].add(column)
+        # Add check constraints.
+        if self.connection.features.can_introspect_check_constraints:
+            unnamed_constraints_index = 0
+            columns = {info.name for info in self.get_table_description(
+                cursor, table_name)}
+            type_query = """
+                SELECT cc.constraint_name, cc.check_clause
+                FROM
+                    information_schema.check_constraints AS cc,
+                    information_schema.table_constraints AS tc
+                WHERE
+                    cc.constraint_schema = %s AND
+                    tc.table_schema = cc.constraint_schema AND
+                    cc.constraint_name = tc.constraint_name AND
+                    tc.constraint_type = 'CHECK' AND
+                    tc.table_name = %s
+            """
+            cursor.execute(type_query, ['SQLUser', table_name])
+            for constraint, check_clause in cursor.fetchall():
+                constraint_columns = self._parse_constraint_columns(
+                    check_clause, columns)
+                # Ensure uniqueness of unnamed constraints. Unnamed unique
+                # and check columns constraints have the same name as
+                # a column.
+                if set(constraint_columns) == {constraint}:
+                    unnamed_constraints_index += 1
+                    constraint = '__unnamed_constraint_%s__' % unnamed_constraints_index
+                constraints[constraint] = {
+                    'columns': constraint_columns,
+                    'primary_key': False,
+                    'unique': False,
+                    'index': False,
+                    'check': True,
+                    'foreign_key': None,
+                }
 
-        cursor.execute("""
+        index_query = """
             SELECT 
                 INDEX_NAME, 
                 COLUMN_NAME, 
@@ -141,21 +218,23 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
             WHERE TABLE_SCHEMA = %s
               AND TABLE_NAME = %s
             ORDER BY ORDINAL_POSITION
-        """,
-                       ['SQLUser', table_name]
-                       )
+        """
+        cursor.execute(index_query, ['SQLUser', table_name])
         for index, column, primary, non_unique, order in cursor.fetchall():
             if index not in constraints:
                 constraints[index] = {
-                    'columns': [],
+                    'columns': OrderedSet(),
                     'primary_key': primary == 1,
                     'unique': not non_unique,
                     'check': False,
                     'foreign_key': None,
                     'orders': [],
                 }
-                constraints[index]['columns'].append(column)
+                constraints[index]['columns'].add(column)
                 constraints[index]['orders'].append(
                     'DESC' if order == 'D' else 'ASC')
 
+        # Convert the sorted sets to lists
+        for constraint in constraints.values():
+            constraint['columns'] = list(constraint['columns'])
         return constraints
