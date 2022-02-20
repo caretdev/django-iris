@@ -20,14 +20,12 @@ class CursorWrapper:
     def execute(self, query, params=None):
         self.times = 0
         query, params = self._fix_for_params(query, params)
-        # print(query, params)
-        self.cursor.execute(query, params)
+        return self.cursor.execute(query, params)
 
     def executemany(self, query, params=None):
         self.times = 0
         query, params = self._fix_for_params(query, params)
-        # print(query, params)
-        self.cursor.executemany(query, params)
+        return self.cursor.executemany(query, params)
 
     def close(self):
         try:
@@ -57,4 +55,5 @@ class CursorWrapper:
         return rows
 
     def fetchone(self):
-        return tuple(self.cursor.fetchone())
+        row = self.cursor.fetchone()
+        return tuple(row) if row else None
