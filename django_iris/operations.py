@@ -6,7 +6,9 @@ from itertools import chain
 
 class DatabaseOperations(BaseDatabaseOperations):
     def quote_name(self, name):
-        return name
+        if name.startswith('"') and name.endswith('"'):
+            return name  # Quoting once is enough.
+        return '"%s"' % name
 
     def adapt_datetimefield_value(self, value):
         if value is None:

@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
-
+from django.db import NotSupportedError
 
 class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
     sql_alter_column_type = "ALTER COLUMN %(column)s %(type)s"
@@ -20,3 +20,10 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
 
     def prepare_default(self, value):
         raise NotImplementedError()
+
+    def table_sql(self, model):
+        if '.' in model._meta.db_table:
+            raise NotSupportedError(
+                "Invalid table name '%s'" % (model._meta.db_table)
+            )
+        return super().table_sql(model)

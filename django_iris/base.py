@@ -3,18 +3,16 @@ from django.db.backends.base.client import BaseDatabaseClient
 from django.db.backends.base.creation import BaseDatabaseCreation
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.asyncio import async_unsafe
-from django.utils.functional import cached_property
 
 from .introspection import DatabaseIntrospection
 from .features import DatabaseFeatures
 from .schema import DatabaseSchemaEditor
 from .operations import DatabaseOperations
 from .cursor import CursorWrapper
-
-from django.db import DataError
+from .creation import DatabaseCreation
+from .validation import DatabaseValidation
 
 import iris as Database
-import traceback
 
 
 Database.Warning = type("StandardError", (object,), {})
@@ -39,11 +37,6 @@ class DatabaseClient(BaseDatabaseClient):
     runshell = ignore
 
 
-class DatabaseCreation(BaseDatabaseCreation):
-    create_test_db = ignore
-    destroy_test_db = ignore
-
-
 class DatabaseWrapper(BaseDatabaseWrapper):
     vendor = 'interystems'
     display_name = 'InterSystems IRIS'
@@ -65,7 +58,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         'BigIntegerField': 'BIGINT',
         'IPAddressField': 'CHAR(15)',
         'GenericIPAddressField': 'CHAR(39)',
-        'JSONField': 'json',
+        'JSONField': 'VARCHAR(32768)',
         'OneToOneField': 'INTEGER',
         'PositiveBigIntegerField': 'BIGINT',
         'PositiveIntegerField': 'INTEGER',
@@ -114,6 +107,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     features_class = DatabaseFeatures
     introspection_class = DatabaseIntrospection
     ops_class = DatabaseOperations
+    validation_class = DatabaseValidation
 
     def get_connection_params(self):
         settings_dict = self.settings_dict
@@ -169,7 +163,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         return Database.connect(**conn_params)
 
     def init_connection_state(self):
-        assignments = []
+        pass
 
     @async_unsafe
     def create_cursor(self, name=None):
