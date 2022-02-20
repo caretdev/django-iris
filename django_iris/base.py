@@ -134,6 +134,8 @@ class DatabaseWrapper(BaseDatabaseWrapper):
                 conn_params['hostname'] = settings_dict['HOST']
             if settings_dict['PORT']:
                 conn_params['port'] = settings_dict['PORT']
+            if settings_dict['NAME']:
+                conn_params['namespace'] = settings_dict['NAME']
             if 'NAMESPACE' in settings_dict:
                 conn_params['namespace'] = settings_dict['NAMESPACE']
 
@@ -144,7 +146,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             ):
                 raise ImproperlyConfigured(
                     "settings.DATABASES is improperly configured. "
-                    "Please supply the HOST, PORT and NAMESPACE"
+                    "Please supply the HOST, PORT and NAME"
                 )
 
         if (
