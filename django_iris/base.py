@@ -38,7 +38,7 @@ class DatabaseClient(BaseDatabaseClient):
 
 
 class DatabaseWrapper(BaseDatabaseWrapper):
-    vendor = 'interystems'
+    vendor = 'intersystems'
     display_name = 'InterSystems IRIS'
 
     data_types = {
@@ -75,9 +75,9 @@ class DatabaseWrapper(BaseDatabaseWrapper):
 
     operators = {
         'exact': '= %s',
-        # 'iexact': "LIKE %s ESCAPE '\\'",
-        # 'contains': "LIKE %s ESCAPE '\\'",
-        # 'icontains': "LIKE %s ESCAPE '\\'",
+        'iexact': "LIKE %s ESCAPE '\\'",
+        'contains': "LIKE %s ESCAPE '\\'",
+        'icontains': "LIKE %s ESCAPE '\\'",
         # 'regex': 'REGEXP %s',
         # 'iregex': "REGEXP '(?i)' || %s",
         'gt': '> %s',
@@ -85,9 +85,9 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         'lt': '< %s',
         'lte': '<= %s',
         'startswith': "%STARTSWITH %s",
-        # 'endswith': "LIKE %s ESCAPE '\\'",
+        'endswith': "LIKE %s ESCAPE '\\'",
         'istartswith': "%STARTSWITH %s",
-        # 'iendswith': "LIKE %s ESCAPE '\\'",
+        'iendswith': "LIKE %s ESCAPE '\\'",
 
     }
     Database = Database
@@ -165,7 +165,9 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         return Database.connect(**conn_params)
 
     def init_connection_state(self):
-        pass
+        cursor = self.connection.cursor()
+        # cursor.callproc('%SYSTEM_SQL.Util_SetOption', ['SELECTMODE', 1])
+        # cursor.callproc('%SYSTEM.SQL_SetSelectMode', [1])
 
     @async_unsafe
     def create_cursor(self, name=None):

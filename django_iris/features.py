@@ -15,3 +15,5 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     supports_column_check_constraints = False
     supports_table_check_constraints = False
     can_introspect_check_constraints = False
+
+    interprets_empty_strings_as_nulls = True

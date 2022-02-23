@@ -20,6 +20,7 @@ class CursorWrapper:
     def execute(self, query, params=None):
         self.times = 0
         query, params = self._fix_for_params(query, params)
+        # print(query, params)
         return self.cursor.execute(query, params)
 
     def executemany(self, query, params=None):

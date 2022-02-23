@@ -1,31 +1,17 @@
+import imp
 from django.conf import settings
 from django.db.backends.base.operations import BaseDatabaseOperations
 from django.utils import timezone
 from itertools import chain
+from datetime import datetime
 
+import traceback
 
 class DatabaseOperations(BaseDatabaseOperations):
     def quote_name(self, name):
         if name.startswith('"') and name.endswith('"'):
             return name  # Quoting once is enough.
         return '"%s"' % name
-
-    def adapt_datetimefield_value(self, value):
-        if value is None:
-            return None
-
-        # Expression values are adapted by the database.
-        if hasattr(value, 'resolve_expression'):
-            return value
-
-        # MySQL doesn't support tz-aware datetimes
-        if timezone.is_aware(value):
-            if settings.USE_TZ:
-                value = timezone.make_naive(value, self.connection.timezone)
-            else:
-                raise ValueError(
-                    "IRIS backend does not support timezone-aware datetimes when USE_TZ is False.")
-        return str(value).split("+")[0]
 
     def last_insert_id(self, cursor, table_name, pk_name):
         cursor.execute("SELECT TOP 1 %(pk)s FROM %(table)s ORDER BY %(pk)s DESC" % {
@@ -60,3 +46,39 @@ class DatabaseOperations(BaseDatabaseOperations):
             # ('LIMIT %d' % limit) if limit else None,
             # ('OFFSET %d' % offset) if offset else None,
         ) if sql)
+
+    def adapt_datetimefield_value(self, value):
+        # print('adapt_datetimefield_value', value)
+        # print(*traceback.format_stack(), sep='\n')
+        if value is None:
+            return None
+        # Expression values are adapted by the database.
+        if hasattr(value, 'resolve_expression'):
+            return value
+
+        value = int(value.timestamp() * 1000000)
+        if value >= 0:
+            value += 2 ** 60
+        else:
+            value += -(2 ** 61 * 3)
+        
+        return str(value)
+        # return str(value).split("+")[0]
+
+    def get_db_converters(self, expression):
+        converters = super().get_db_converters(expression)
+        internal_type = expression.output_field.get_internal_type()
+        if internal_type == "DateTimeField":
+            converters.append(self.convert_datetimefield_value)
+        return converters
+
+    def convert_datetimefield_value(self, value, expression, connection):
+        # print('convert_datetimefield_value', value, expression)
+        if isinstance(value, int):
+            if value > 0:
+                value -= 2 ** 60
+            else:
+                value -= -(2 ** 61 * 3)
+            value = value / 1000000
+            value = datetime.fromtimestamp(value)
+        return value
