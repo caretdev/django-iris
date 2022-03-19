@@ -11,6 +11,8 @@ name: Upload Python Package
 on:
   release:
     types: [published]
+  push:
+    branches: [main]
 
 jobs:
   deploy:
@@ -19,16 +21,22 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
+      if: github.event_name == 'push'
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
         python-version: '3.x'
     - name: Install dependencies
+      id: set-version
       run: |
-        VERSION=${{ github.event.release.tag_name }}
+        VERSION=$(grep version setup.cfg | cut -d=  -f2 | tr -d '[:blank:]')
+        [ $GITHUB_EVENT_NAME == 'release' ] && VERSION=${{ github.event.release.tag_name }} && VERSION=${VERSION/v/}
+        [ $GITHUB_EVENT_NAME == 'push' ] && VERSION+=b && VERSION+=$(($(git tag -l "*$VERSION*" | cut -db -f2 | sort -n | tail -1)+1)) 
         sed -ie "s/version = .*/version = $VERSION/" setup.cfg
         python -m pip install --upgrade pip
         pip install build
+        echo ::set-output name=version::$VERSION
     - name: Build package
       run: python -m build
     - name: Publish package
@@ -36,3 +44,22 @@ jobs:
       with:
         user: __token__
         password: ${{ secrets.PYPI_API_TOKEN }}
+    - name: Create Beta Release
+      id: create_release
+      if: github.event_name == 'push'
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ steps.set-version.outputs.version }}
+        release_name: v${{ steps.set-version.outputs.version }}
+        prerelease: ${{ github.event_name != 'release' }}
+    - name: Bump version
+      if: github.event_name == 'release'
+      run: |
+        VERSION=`echo $VERSION | awk -F. '/[0-9]+\./{$NF++;print}' OFS=.`
+        sed -ie "s/version = .*/version = $VERSION/" setup.cfg
+        git checkout main
+        git add setup.cfg
+        git commit -m 'auto bump version with release'
+        git push
