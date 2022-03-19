@@ -1,6 +1,8 @@
 from django.db.backends.base.features import BaseDatabaseFeatures
 class DatabaseFeatures(BaseDatabaseFeatures):
     empty_fetchmany_value = []
+
+    requires_literal_defaults = True
     
     supports_transactions = False
     uses_savepoints = False

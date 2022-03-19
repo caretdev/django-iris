@@ -19,7 +19,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         return value
 
     def prepare_default(self, value):
-        raise NotImplementedError()
+        return self.quote_value(value)
 
     def table_sql(self, model):
         if '.' in model._meta.db_table:
