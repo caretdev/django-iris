@@ -73,6 +73,8 @@ jobs:
     - name: Bump version
       if: github.event_name == 'release'
       run: |
+        git config --global user.name 'ProjectBot'
+        git config --global user.email 'bot@users.noreply.github.com'
         VERSION=`echo $VERSION | awk -F. '/[0-9]+\./{$NF++;print}' OFS=.`
         sed -ie "s/version = .*/version = $VERSION/" setup.cfg
         git add setup.cfg
