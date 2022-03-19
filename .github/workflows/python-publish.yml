@@ -66,12 +66,15 @@ jobs:
         asset_path: dist/${{ steps.set-version.outputs.name }}.whl
         asset_name: ${{ steps.set-version.outputs.name }}.whl
         asset_content_type: application/zip
+    - uses: actions/checkout@v2
+      if: github.event_name == 'release'
+      with:
+        ref: main
     - name: Bump version
       if: github.event_name == 'release'
       run: |
         VERSION=`echo $VERSION | awk -F. '/[0-9]+\./{$NF++;print}' OFS=.`
         sed -ie "s/version = .*/version = $VERSION/" setup.cfg
-        git checkout main
         git add setup.cfg
         git commit -m 'auto bump version with release'
         git push
