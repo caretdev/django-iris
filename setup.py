@@ -9,9 +9,5 @@ with open('requirements.txt') as f:
         else:
             requirements.append(line)
 
-# print(dependency_links)
-
-# print(requirements)
-
 setup(install_requires=requirements,
         dependency_links=dependency_links)
