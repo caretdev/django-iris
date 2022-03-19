@@ -1,3 +1,17 @@
+import re
 from setuptools import setup
 
-setup()
+requirements, dependency_links = [], []
+with open('requirements.txt') as f:
+    for line in f.read().splitlines():
+        if line.startswith('-e git+'):
+            dependency_links.append(line.replace('-e git+', ''))
+        else:
+            requirements.append(line)
+
+# print(dependency_links)
+
+# print(requirements)
+
+setup(install_requires=requirements,
+        dependency_links=dependency_links)
