@@ -37,7 +37,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install build
         echo ::set-output name=version::$VERSION
-        NAME=$(grep name setup.cfg | cut -d=  -f2 | tr -d '[:blank:]')-${VERSION}-py3-none-any
+        NAME="django_iris"-${VERSION}-py3-none-any
         echo ::set-output name=name::$NAME
     - name: Build package
       run: python -m build
