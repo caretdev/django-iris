@@ -10,6 +10,13 @@ FieldInfo = namedtuple(
     'FieldInfo', BaseFieldInfo._fields + ('auto_increment', ))
 
 
+def schema_name(table_name):
+    table_schema = 'SQLUser'
+    if '.' in table_name:
+        [table_schema, table_name] = table_name.split('.')
+    return [table_schema, table_name, ]
+
+
 class DatabaseIntrospection(BaseDatabaseIntrospection):
     data_types_reverse = {
         'bigint': 'BigIntegerField',
@@ -48,11 +55,12 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
 
     def get_table_list(self, cursor):
         cursor.execute("""
-          SELECT TABLE_NAME
+          SELECT TABLE_SCHEMA,TABLE_NAME
           FROM information_schema.tables
-          WHERE TABLE_SCHEMA = 'SQLUser'
+          WHERE TABLE_TYPE = 'BASE TABLE' 
+          AND NOT (TABLE_SCHEMA %STARTSWITH 'Ens')
         """)
-        return [TableInfo(row[0], 't') for row in cursor.fetchall()]
+        return [TableInfo(row[1] if row[0] == 'SQLUser' else row[0] + '.' + row[1], 't') for row in cursor.fetchall()]
 
     def get_table_description(self, cursor, table_name):
         """
@@ -74,7 +82,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
             AND TABLE_NAME = %s
             ORDER BY ORDINAL_POSITION
         """,
-                       ['SQLUser', table_name]
+                       schema_name(table_name)
                        )
 
         description = [
@@ -101,6 +109,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         Return a dictionary of {field_name: (field_name_other_table, other_table)}
         representing all relationships to the given table.
         """
+
         # Dictionary of relations to return
         cursor.execute("""
             SELECT column_name, referenced_column_name, referenced_table_name
@@ -109,7 +118,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
                 AND table_name = %s
                 AND referenced_table_name IS NOT NULL
                 AND referenced_column_name IS NOT NULL
-        """, ['SQLUser', table_name])
+        """, schema_name(table_name))
         return {
             field_name: (other_field, other_table)
             for field_name, other_field, other_table in cursor.fetchall()
@@ -151,13 +160,13 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
                 information_schema.table_constraints AS c
             WHERE
                 kc.table_schema = %s AND
+                kc.table_name = %s AND
                 c.table_schema = kc.table_schema AND
                 c.constraint_name = kc.constraint_name AND
-                c.constraint_type != 'CHECK' AND
-                kc.table_name = %s
+                c.constraint_type != 'CHECK'
             ORDER BY kc.ordinal_position
         """
-        cursor.execute(name_query, ['SQLUser', table_name])
+        cursor.execute(name_query, schema_name(table_name))
         for constraint, column, ref_table, ref_column, kind in cursor.fetchall():
             if constraint not in constraints:
                 constraints[constraint] = {
@@ -188,7 +197,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
                     tc.constraint_type = 'CHECK' AND
                     tc.table_name = %s
             """
-            cursor.execute(type_query, ['SQLUser', table_name])
+            cursor.execute(type_query, schema_name(table_name))
             for constraint, check_clause in cursor.fetchall():
                 constraint_columns = self._parse_constraint_columns(
                     check_clause, columns)
@@ -219,7 +228,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
               AND TABLE_NAME = %s
             ORDER BY ORDINAL_POSITION
         """
-        cursor.execute(index_query, ['SQLUser', table_name])
+        cursor.execute(index_query, schema_name(table_name))
         for index, column, primary, non_unique, order in cursor.fetchall():
             if index not in constraints:
                 constraints[index] = {
