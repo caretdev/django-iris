@@ -36,7 +36,6 @@ def ignore(*args, **kwargs):
 class DatabaseClient(BaseDatabaseClient):
     runshell = ignore
 
-
 class DatabaseWrapper(BaseDatabaseWrapper):
     vendor = 'intersystems'
     display_name = 'InterSystems IRIS'
@@ -94,7 +93,6 @@ class DatabaseWrapper(BaseDatabaseWrapper):
 
     _commit = ignore
     _rollback = ignore
-    _close = ignore
     _savepoint = ignore
     _savepoint_commit = ignore
     _savepoint_rollback = ignore
@@ -109,17 +107,21 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     ops_class = DatabaseOperations
     validation_class = DatabaseValidation
 
+
     def get_connection_params(self):
         settings_dict = self.settings_dict
 
         conn_params = {
             'username': None,
             'password': None,
+            'timeout': 30,
         }
         if settings_dict['USER']:
             conn_params['username'] = settings_dict['USER']
         if settings_dict['PASSWORD']:
             conn_params['password'] = settings_dict['PASSWORD']
+        if settings_dict['TIMEOUT']:
+            conn_params['timeout'] = settings_dict['TIMEOUT']
 
         if 'CONNECTION_STRING' in settings_dict:
             conn_params['connectionstr'] = settings_dict['CONNECTION_STRING']
