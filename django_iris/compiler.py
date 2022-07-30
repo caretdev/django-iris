@@ -7,13 +7,13 @@ class SQLCompiler(compiler.SQLCompiler):
         with_limit_offset = with_limits and (
             self.query.high_mark is not None or self.query.low_mark
         )
-        print('LIMIT - ' + str(self.query.low_mark) + ':' + str(self.query.high_mark))
         if self.query.select_for_update or not with_limit_offset:
             return super().as_sql(with_limits, with_col_aliases)
         try:
             extra_select, order_by, group_by = self.pre_sql_setup()
 
-            limit, offset = self.connection.ops._get_limit_offset_params(self.query.low_mark, self.query.high_mark)
+            offset = self.query.low_mark + 1 if self.query.low_mark else 0
+            limit = self.query.high_mark
 
             distinct_fields, distinct_params = self.get_distinct()
             # This must come after 'select', 'ordering', and 'distinct'
@@ -45,9 +45,11 @@ class SQLCompiler(compiler.SQLCompiler):
                 result += distinct_result
                 params += distinct_params
 
+            first_col = ""
             out_cols = []
             col_idx = 1
             for _, (s_sql, s_params), alias in self.select + extra_select:
+                first_col = s_sql if not first_col else first_col
                 if alias:
                     s_sql = "%s AS %s" % (
                         s_sql,
@@ -63,14 +65,18 @@ class SQLCompiler(compiler.SQLCompiler):
                 out_cols.append(s_sql)
 
             order_by_result = ""
+
             if order_by:
                 ordering = []
                 for _, (o_sql, o_params, _) in order_by:
                     ordering.append(o_sql)
                     params.extend(o_params)
                 order_by_result = "ORDER BY %s" % ", ".join(ordering)
-                if offset:
-                    out_cols.append("ROW_NUMBER() OVER (%s) AS row_number" % order_by_result)
+            elif offset:
+                order_by_result = "ORDER BY %s" % first_col
+
+            if offset:
+                out_cols.append("ROW_NUMBER() %s AS row_number" % ("OVER (%s)" % order_by_result if order_by_result else ""))
 
             result += [", ".join(out_cols), "FROM", *from_]
             params.extend(f_params)
@@ -147,8 +153,8 @@ class SQLCompiler(compiler.SQLCompiler):
             if offset:
                 query = "SELECT * FROM (%s) WHERE row_number between %d AND %d ORDER BY row_number" % (
                     query,
-                    limit,
                     offset,
+                    limit,
                 )
             return query, tuple(params)
         except:
