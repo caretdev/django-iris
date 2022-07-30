@@ -80,6 +80,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
             FROM INFORMATION_SCHEMA.COLUMNS 
             WHERE TABLE_SCHEMA = %s
             AND TABLE_NAME = %s
+            AND NOT (AUTO_INCREMENT = 'YES' AND PRIMARY_KEY = 'NO')
             ORDER BY ORDINAL_POSITION
         """,
                        schema_name(table_name)
