@@ -5,7 +5,8 @@ from django.utils import timezone
 from itertools import chain
 from datetime import datetime
 
-import traceback
+from django.utils.dateparse import parse_date, parse_datetime, parse_time
+
 
 class DatabaseOperations(BaseDatabaseOperations):
 
@@ -45,16 +46,9 @@ class DatabaseOperations(BaseDatabaseOperations):
         return None
 
     def limit_offset_sql(self, low_mark, high_mark):
-        # print("limit_offset_sql")
-        limit, offset = self._get_limit_offset_params(low_mark, high_mark)
-        return ' '.join(sql for sql in (
-            # ('LIMIT %d' % limit) if limit else None,
-            # ('OFFSET %d' % offset) if offset else None,
-        ) if sql)
+        return ''
 
     def adapt_datetimefield_value(self, value):
-        # print('adapt_datetimefield_value', value)
-        # print(*traceback.format_stack(), sep='\n')
         if value is None:
             return None
         # Expression values are adapted by the database.
@@ -66,7 +60,7 @@ class DatabaseOperations(BaseDatabaseOperations):
             value += 2 ** 60
         else:
             value += -(2 ** 61 * 3)
-        
+
         return str(value)
         # return str(value).split("+")[0]
 
@@ -75,15 +69,59 @@ class DatabaseOperations(BaseDatabaseOperations):
         internal_type = expression.output_field.get_internal_type()
         if internal_type == "DateTimeField":
             converters.append(self.convert_datetimefield_value)
+        if internal_type == "TimeField":
+            converters.append(self.convert_timefield_value)
+        if internal_type == "DateField":
+            converters.append(self.convert_datefield_value)
         return converters
 
     def convert_datetimefield_value(self, value, expression, connection):
-        # print('convert_datetimefield_value', value, expression)
-        if isinstance(value, int):
-            if value > 0:
-                value -= 2 ** 60
-            else:
-                value -= -(2 ** 61 * 3)
-            value = value / 1000000
-            value = datetime.fromtimestamp(value)
+        if value is not None:
+            if isinstance(value, int):
+                if value > 0:
+                    value -= 2 ** 60
+                else:
+                    value -= -(2 ** 61 * 3)
+                value = value / 1000000
+                value = datetime.fromtimestamp(value)
+            elif isinstance(value, str):
+                if value != '':
+                    value = parse_datetime(value)
+                    if settings.USE_TZ and not timezone.is_aware(value):
+                        value = timezone.make_aware(
+                            value, self.connection.timezone)
         return value
+
+    def convert_datefield_value(self, value, expression, connection):
+        if value is not None:
+            if not isinstance(value, datetime.date):
+                value = parse_date(value)
+        return value
+
+    def convert_timefield_value(self, value, expression, connection):
+        if value is not None:
+            if not isinstance(value, datetime.time):
+                value = parse_time(value)
+        return value
+
+    def conditional_expression_supported_in_where_clause(self, expression):
+        return False
+
+    def adapt_datefield_value(self, value):
+        print('adapt_datefield_value: ' + str(value))
+        if value == None:
+            return None
+        return str(value)
+
+    def adapt_datetimefield_value(self, value):
+        print('adapt_datetimefield_value: ' + str(value))
+        if value == None:
+            return None
+        return str(value)
+
+    def adapt_timefield_value(self, value):
+        if value is None:
+            return None
+        if timezone.is_aware(value):
+            raise ValueError("Django does not support timezone-aware times.")
+        return str(value)
