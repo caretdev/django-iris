@@ -27,6 +27,11 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             return "NULL"
         return value
 
+    def quote_name(self, name):
+        if '.' in name:
+            return name
+        return self.connection.ops.quote_name(name)
+
     def prepare_default(self, value):
         return self.quote_value(value)
 

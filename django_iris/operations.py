@@ -14,6 +14,8 @@ class DatabaseOperations(BaseDatabaseOperations):
     def quote_name(self, name):
         if name.startswith('"') and name.endswith('"'):
             return name  # Quoting once is enough.
+        if '.' in name:
+            return ".".join(['"%s"' % n for n in name.split('.')])
         return '"%s"' % name
 
     def last_insert_id(self, cursor, table_name, pk_name):
