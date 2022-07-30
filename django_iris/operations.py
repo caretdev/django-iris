@@ -10,7 +10,7 @@ from django.utils.dateparse import parse_date, parse_datetime, parse_time
 
 class DatabaseOperations(BaseDatabaseOperations):
 
-    # compiler_module = "django_iris.compiler"
+    compiler_module = "django_iris.compiler"
 
     def quote_name(self, name):
         if name.startswith('"') and name.endswith('"'):

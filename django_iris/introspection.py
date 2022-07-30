@@ -87,8 +87,6 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
                        )
 
         description = [
-            # name type_code display_size internal_size precision scale null_ok default collation
-            # auto_increment
             FieldInfo(
                 name,
                 'longvarchar'
