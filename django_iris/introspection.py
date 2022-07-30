@@ -91,7 +91,8 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
             # auto_increment
             FieldInfo(
                 name,
-                data_type,
+                'longvarchar'
+                if data_type == 'varchar' and length == '-1' else data_type,
                 None,
                 length,
                 precision,
