@@ -3,7 +3,7 @@ from django.conf import settings
 from django.db.backends.base.operations import BaseDatabaseOperations
 from django.utils import timezone
 from itertools import chain
-from datetime import datetime
+from datetime import date, datetime,timedelta
 
 from django.utils.dateparse import parse_date, parse_datetime, parse_time
 
@@ -94,14 +94,20 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def convert_datefield_value(self, value, expression, connection):
         if value is not None:
-            if not isinstance(value, datetime.date):
-                value = parse_date(value)
+            if not isinstance(value, type(datetime.date)):
+                if isinstance(value, int):
+                    value=date.fromordinal(672046+value)
+                else:
+                    value = parse_date(value)
         return value
 
     def convert_timefield_value(self, value, expression, connection):
         if value is not None:
-            if not isinstance(value, datetime.time):
-                value = parse_time(value)
+            if not isinstance(value, type(datetime.time)):
+                if isinstance(value, int):
+                    value=timedelta(seconds=value)
+                else:
+                    value = parse_time(value)
         return value
 
     def conditional_expression_supported_in_where_clause(self, expression):
