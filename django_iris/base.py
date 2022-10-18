@@ -120,7 +120,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             conn_params['username'] = settings_dict['USER']
         if settings_dict['PASSWORD']:
             conn_params['password'] = settings_dict['PASSWORD']
-        if settings_dict['TIMEOUT']:
+        if 'TIMEOUT' in settings_dict:
             conn_params['timeout'] = settings_dict['TIMEOUT']
 
         if 'CONNECTION_STRING' in settings_dict:
