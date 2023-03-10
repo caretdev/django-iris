@@ -12,7 +12,7 @@ from .cursor import CursorWrapper
 from .creation import DatabaseCreation
 from .validation import DatabaseValidation
 
-import iris as Database
+import intersystems_iris as Database
 
 
 Database.Warning = type("StandardError", (object,), {})
@@ -65,9 +65,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         'SlugField': 'VARCHAR(%(max_length)s)',
         'SmallAutoField': 'SMALLINT AUTO_INCREMENT',
         'SmallIntegerField': 'SMALLINT',
-        # 'TextField': 'LONG',
-        # Stream not supported yet by db-api
-        'TextField': 'VARCHAR(255)',
+        'TextField': 'TEXT',
         'TimeField': 'TIME(6)',
         'UUIDField': 'CHAR(32)',
     }
