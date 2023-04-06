@@ -35,11 +35,12 @@ jobs:
         [ $GITHUB_EVENT_NAME == 'push' ] && VERSION+=b && VERSION+=$(($(git tag -l "*$VERSION*" | cut -db -f2 | sort -n | tail -1)+1)) 
         sed -ie "s/version = .*/version = $VERSION/" setup.cfg
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install build
-        echo ::set-output name=version::$VERSION
+        pip install -U pip setuptools
+        pip install -r requirements-dev.txt
+        pip install -r requirements-iris.txt
+        echo version=$VERSION >> $GITHUB_OUTPUT
         NAME="django_iris"-${VERSION}-py3-none-any
-        echo ::set-output name=name::$NAME
+        echo name=$NAME >> $GITHUB_OUTPUT
     - name: Build package
       run: ./scripts/build-dist.sh
     - name: Publish package
