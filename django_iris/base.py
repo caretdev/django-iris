@@ -162,6 +162,9 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         conn_params["autoCommit"] = self.autocommit
         return conn_params
 
+    def init_connection_state(self):
+        pass
+    
     @async_unsafe
     def get_new_connection(self, conn_params):
         return Database.connect(**conn_params)
