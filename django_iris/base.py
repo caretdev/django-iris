@@ -5,7 +5,6 @@ from django.core.exceptions import ImproperlyConfigured
 from django.utils.asyncio import async_unsafe
 from django.utils.functional import cached_property
 from django.db.utils import DatabaseErrorWrapper
-from django.db.backends.utils import debug_transaction
 
 from .introspection import DatabaseIntrospection
 from .features import DatabaseFeatures
