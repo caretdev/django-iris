@@ -58,15 +58,19 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
           SELECT TABLE_SCHEMA,TABLE_NAME
           FROM information_schema.tables
           WHERE TABLE_TYPE = 'BASE TABLE' 
-          AND NOT (TABLE_SCHEMA %STARTSWITH 'Ens')
+          AND NOT (TABLE_SCHEMA %%STARTSWITH 'Ens')
         """)
-        return [TableInfo(row[1] if row[0] == 'SQLUser' else row[0] + '.' + row[1], 't') for row in cursor.fetchall()]
+        rows = cursor.fetchall() or []
+        return [TableInfo(row[1] if row[0] == 'SQLUser' else row[0] + '.' + row[1], 't') for row in rows]
 
     def get_table_description(self, cursor, table_name):
         """
         Return a description of the table with the DB-API cursor.description
         interface.
         """
+        cursor.execute(
+            "SELECT TOP 1 * FROM %s" % self.connection.ops.quote_name(table_name)
+        )
 
         cursor.execute("""
             SELECT 
@@ -76,7 +80,8 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
                 NUMERIC_PRECISION,
                 NUMERIC_SCALE,
                 IS_NULLABLE,
-                AUTO_INCREMENT
+                AUTO_INCREMENT,
+                COLUMN_DEFAULT
             FROM INFORMATION_SCHEMA.COLUMNS 
             WHERE TABLE_SCHEMA = %s
             AND TABLE_NAME = %s
@@ -85,7 +90,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         """,
                        schema_name(table_name)
                        )
-
+        
         description = [
             FieldInfo(
                 name,
@@ -96,11 +101,11 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
                 precision,
                 scale,
                 isnull == 'YES',
-                '',
+                column_default,
                 '',
                 auto_increment == 'YES',
             )
-            for name, data_type, length, precision, scale, isnull, auto_increment in cursor.fetchall()
+            for name, data_type, length, precision, scale, isnull, auto_increment, column_default in cursor.fetchall()
         ]
         return description
 
@@ -233,15 +238,17 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
             if index not in constraints:
                 constraints[index] = {
                     'columns': OrderedSet(),
+                    'index': True,
                     'primary_key': primary == 1,
                     'unique': not non_unique,
                     'check': False,
                     'foreign_key': None,
                     'orders': [],
+                    "type": Index.suffix,
                 }
-                constraints[index]['columns'].add(column)
-                constraints[index]['orders'].append(
-                    'DESC' if order == 'D' else 'ASC')
+            constraints[index]['columns'].add(column)
+            # What's the point of orders, if IRIS don't care about it
+            constraints[index]['orders'].append('DESC' if order == 'D' else 'ASC')
 
         # Convert the sorted sets to lists
         for constraint in constraints.values():
