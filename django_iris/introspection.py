@@ -6,6 +6,8 @@ from django.db.backends.base.introspection import (
 from django.db.models import Index
 from django.utils.datastructures import OrderedSet
 
+MAXLEN = 65535
+
 FieldInfo = namedtuple(
     'FieldInfo', BaseFieldInfo._fields + ('auto_increment', ))
 
@@ -94,10 +96,9 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         description = [
             FieldInfo(
                 name,
-                'longvarchar'
-                if data_type == 'varchar' and length == '-1' else data_type,
-                None,
-                length,
+                'longvarchar' if data_type == 'varchar' and length == '-1' else data_type,
+                MAXLEN if not isinstance(length, int) or data_type != 'varchar' else length,
+                MAXLEN if not isinstance(length, int) or data_type != 'varchar' else length,
                 precision,
                 scale,
                 isnull == 'YES',
