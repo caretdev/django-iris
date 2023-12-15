@@ -2,31 +2,26 @@ class CursorWrapper:
     def __init__(self, cursor):
         self.cursor = cursor
 
-    def _fix_for_params(self, query, params):
-        if query.endswith(';'):
-            query = query[:-1]
-        if params is None:
-            params = []
-        elif hasattr(params, 'keys'):
-            # Handle params as dict
-            args = {k: "?" % k for k in params}
-            query = query % args
-        else:
-            # Handle params as sequence
-            args = ['?' for i in range(len(params))]
-            query = query % tuple(args)
-        return query, list(params)
+    # Django supports only %s params, convert them to ? for IRIS
+    def _replace_params(self, query, params_count=0):
+        if query.endswith(";"):
+            query = query[0:-1]
+        # return (query % tuple([f":%qpar({i+1})" for i in range(params_count)])) if params_count > 0 else query.replace('%%', '%')
+        return (query % tuple("?" * params_count)) if params_count > 0 else query.replace('%%', '%')
 
     def execute(self, query, params=None):
-        self.times = 0
-        query, params = self._fix_for_params(query, params)
-        # print(query, params)
+        query = self._replace_params(query, len(params) if params else 0)
         return self.cursor.execute(query, params)
 
     def executemany(self, query, params=None):
-        self.times = 0
-        query, params = self._fix_for_params(query, params)
-        return self.cursor.executemany(query, params)
+        if not isinstance(params, tuple) and not isinstance(params, list):
+            params = tuple(params)
+        query = self._replace_params(query, len(params[0]) if params else 0)
+        try:
+            return self.cursor.executemany(query, params)
+        except ValueError:
+            # Ignore if missing parameters, suppose just insert nothing
+            pass
 
     def close(self):
         try:
@@ -40,21 +35,3 @@ class CursorWrapper:
 
     def __iter__(self):
         return iter(self.cursor)
-
-    def fetchall(self):
-        rows = self.cursor.fetchall()
-        rows = [tuple(r) for r in rows]
-        return rows
-
-    def fetchmany(self, size=None):
-        # workaround for endless loop
-        if self.times > 0:
-            return []
-        self.times += 1
-        rows = self.cursor.fetchmany(size)
-        rows = [tuple(r) for r in rows]
-        return rows
-
-    def fetchone(self):
-        row = self.cursor.fetchone()
-        return tuple(row) if row else None

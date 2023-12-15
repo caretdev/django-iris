@@ -1,11 +1,12 @@
-from django.core.exceptions import EmptyResultSet
-from django.db.models.expressions import Col
+from django.core.exceptions import EmptyResultSet, FullResultSet
+from django.db.models.expressions import Col, Value
 from django.db.models.sql import compiler
 
 class SQLCompiler(compiler.SQLCompiler):
+
     def as_sql(self, with_limits=True, with_col_aliases=False):
-        with_limit_offset = with_limits and (
-            self.query.high_mark is not None or self.query.low_mark
+        with_limit_offset = (with_limits or self.query.is_sliced) and (
+            self.query.high_mark is not None or self.query.low_mark > 0
         )
         if self.query.select_for_update or not with_limit_offset:
             return super().as_sql(with_limits, with_col_aliases)
@@ -28,14 +29,13 @@ class SQLCompiler(compiler.SQLCompiler):
                     raise
                 # Use a predicate that's always False.
                 where, w_params = "0 = 1", []
+            except FullResultSet:
+                where, w_params = "", []
             having, h_params = (
                 self.compile(self.having) if self.having is not None else ("", [])
             )
             result = ["SELECT"]
             params = []
-
-            if not offset:
-                result.append("TOP %d" % limit)
 
             if self.query.distinct:
                 distinct_result, distinct_params = self.connection.ops.distinct_sql(
@@ -44,6 +44,9 @@ class SQLCompiler(compiler.SQLCompiler):
                 )
                 result += distinct_result
                 params += distinct_params
+
+            if not offset:
+                result.append("TOP %d" % limit)
 
             first_col = ""
             out_cols = []
@@ -162,7 +165,24 @@ class SQLCompiler(compiler.SQLCompiler):
 
 
 class SQLInsertCompiler(compiler.SQLInsertCompiler, SQLCompiler):
-    pass
+    
+    def as_sql(self):
+        if self.query.fields:
+            return super().as_sql()
+
+        # No values provided
+
+        qn = self.connection.ops.quote_name
+        opts = self.query.get_meta()
+        insert_statement = self.connection.ops.insert_statement(
+            on_conflict=self.query.on_conflict,
+        )
+        result = ["%s %s" % (insert_statement, qn(opts.db_table))]
+        fields = self.query.fields or [opts.pk]
+        result.append("(%s)" % ", ".join(qn(f.column) for f in fields))
+        result.append("DEFAULT VALUES")
+
+        return [(" ".join(result), [])]
 
 
 class SQLDeleteCompiler(compiler.SQLDeleteCompiler, SQLCompiler):
@@ -170,7 +190,11 @@ class SQLDeleteCompiler(compiler.SQLDeleteCompiler, SQLCompiler):
 
 
 class SQLUpdateCompiler(compiler.SQLUpdateCompiler, SQLCompiler):
-    pass
+    def as_sql(self):
+        sql, params = super().as_sql()
+        if self.connection._disable_constraint_checking:
+            sql = "UPDATE %%NOCHECK" + sql[6:]
+        return sql, params
     
 
 class SQLAggregateCompiler(compiler.SQLAggregateCompiler, SQLCompiler):

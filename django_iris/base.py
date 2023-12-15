@@ -3,6 +3,8 @@ from django.db.backends.base.client import BaseDatabaseClient
 from django.db.backends.base.creation import BaseDatabaseCreation
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.asyncio import async_unsafe
+from django.utils.functional import cached_property
+from django.db.utils import DatabaseErrorWrapper
 
 from .introspection import DatabaseIntrospection
 from .features import DatabaseFeatures
@@ -12,21 +14,7 @@ from .cursor import CursorWrapper
 from .creation import DatabaseCreation
 from .validation import DatabaseValidation
 
-import intersystems_iris as Database
-
-
-Database.Warning = type("StandardError", (object,), {})
-Database.Error = type("StandardError", (object,), {})
-
-Database.InterfaceError = type("Error", (object,), {})
-
-Database.DatabaseError = type("Error", (object,), {})
-Database.DataError = type("DatabaseError", (object,), {})
-Database.OperationalError = type("DatabaseError", (object,), {})
-Database.IntegrityError = type("DatabaseError", (object,), {})
-Database.InternalError = type("DatabaseError", (object,), {})
-Database.ProgrammingError = type("DatabaseError", (object,), {})
-Database.NotSupportedError = type("DatabaseError", (object,), {})
+import intersystems_iris.dbapi._DBAPI as Database
 
 
 def ignore(*args, **kwargs):
@@ -41,8 +29,8 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     display_name = 'InterSystems IRIS'
 
     data_types = {
-        'AutoField': 'INTEGER AUTO_INCREMENT',
-        'BigAutoField': 'BIGINT AUTO_INCREMENT',
+        'AutoField': 'IDENTITY',
+        'BigAutoField': 'IDENTITY',
         'BinaryField': 'LONG BINARY',
         'BooleanField': 'BIT',
         'CharField': 'VARCHAR(%(max_length)s)',
@@ -63,7 +51,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         'PositiveIntegerField': 'INTEGER',
         'PositiveSmallIntegerField': 'SMALLINT',
         'SlugField': 'VARCHAR(%(max_length)s)',
-        'SmallAutoField': 'SMALLINT AUTO_INCREMENT',
+        'SmallAutoField': 'IDENTITY',
         'SmallIntegerField': 'SMALLINT',
         'TextField': 'TEXT',
         'TimeField': 'TIME(6)',
@@ -81,20 +69,31 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         'gte': '>= %s',
         'lt': '< %s',
         'lte': '<= %s',
-        'startswith': "%%%%STARTSWITH %s",
+        'startswith': "LIKE %s ESCAPE '\\'",
         'endswith': "LIKE %s ESCAPE '\\'",
-        'istartswith': "%%%%STARTSWITH %s",
+        'istartswith': "LIKE %s ESCAPE '\\'",
         'iendswith': "LIKE %s ESCAPE '\\'",
+    }
+
+    pattern_esc = r"REPLACE(REPLACE(REPLACE({}, '\', '\\'), '%%', '\%%'), '_', '\_')"
+    pattern_ops = {
+        "contains": "LIKE '%%' || {} || '%%'",
+        "icontains": "LIKE '%%' || UPPER({}) || '%%'",
+        "startswith": "LIKE {} || '%%'",
+        "istartswith": "LIKE UPPER({}) || '%%'",
+        "endswith": "LIKE '%%' || {}",
+        "iendswith": "LIKE '%%' || UPPER({})",
 
     }
+
     Database = Database
 
-    _commit = ignore
-    _rollback = ignore
-    _savepoint = ignore
-    _savepoint_commit = ignore
-    _savepoint_rollback = ignore
-    _set_autocommit = ignore
+    # _commit = ignore
+    # _rollback = ignore
+    # _savepoint = ignore
+    # _savepoint_commit = ignore
+    # _savepoint_rollback = ignore
+    # _set_autocommit = ignore
 
     SchemaEditorClass = DatabaseSchemaEditor
 
@@ -105,6 +104,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     ops_class = DatabaseOperations
     validation_class = DatabaseValidation
 
+    _disable_constraint_checking = False
 
     def get_connection_params(self):
         settings_dict = self.settings_dict
@@ -134,10 +134,10 @@ class DatabaseWrapper(BaseDatabaseWrapper):
                 conn_params['hostname'] = settings_dict['HOST']
             if settings_dict['PORT']:
                 conn_params['port'] = settings_dict['PORT']
-            if settings_dict['NAME']:
-                conn_params['namespace'] = settings_dict['NAME']
             if 'NAMESPACE' in settings_dict:
                 conn_params['namespace'] = settings_dict['NAMESPACE']
+            if settings_dict['NAME']:
+                conn_params['namespace'] = settings_dict['NAME']
 
             if (
                 not conn_params['hostname'] or
@@ -158,16 +158,24 @@ class DatabaseWrapper(BaseDatabaseWrapper):
                 "Please supply the USER and PASSWORD"
             )
 
+        conn_params['application_name'] = 'django'
+        conn_params["autoCommit"] = self.autocommit
         return conn_params
 
+    def init_connection_state(self):
+        pass
+    
     @async_unsafe
     def get_new_connection(self, conn_params):
         return Database.connect(**conn_params)
 
-    def init_connection_state(self):
-        cursor = self.connection.cursor()
-        # cursor.callproc('%SYSTEM_SQL.Util_SetOption', ['SELECTMODE', 1])
-        # cursor.callproc('%SYSTEM.SQL_SetSelectMode', [1])
+    def _close(self):
+        if self.connection is not None:
+            # Automatically rollbacks anyway
+            # self.in_atomic_block = False
+            # self.needs_rollback = False
+            with self.wrap_database_errors:
+                return self.connection.close()
 
     @async_unsafe
     def create_cursor(self, name=None):
@@ -182,3 +190,29 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             return False
         else:
             return True
+
+    @cached_property
+    def wrap_database_errors(self):
+        """
+        Context manager and decorator that re-throws backend-specific database
+        exceptions using Django's common wrappers.
+        """
+        return DatabaseErrorWrapper(self)
+
+    def _set_autocommit(self, autocommit):
+        with self.wrap_database_errors:
+            self.connection.setAutoCommit(autocommit)
+
+    def disable_constraint_checking(self):
+        self._disable_constraint_checking = True
+        return True
+
+    def enable_constraint_checking(self):
+        self._disable_constraint_checking = False
+
+    @async_unsafe
+    def savepoint_commit(self, sid):
+        """
+        IRIS does not have `RELEASE SAVEPOINT`
+        so, just ignore it
+        """
