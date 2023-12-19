@@ -9,7 +9,7 @@ Prerequisites
 You must install, the latest version of InterSystems IRIS DB-API Python driver
 
 ```shell
-pip3 install intersystems_irispython-3.2.0-py3-none-any.whl
+pip3 install https://github.com/intersystems-community/intersystems-irispython/releases/download/3.7.3/intersystems_iris-3.7.3-py3-none-any.whl
 ```
 
 Install and usage
