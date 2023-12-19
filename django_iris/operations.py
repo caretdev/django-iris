@@ -8,7 +8,10 @@ from itertools import chain
 from datetime import date, datetime,timedelta
 from django.utils.encoding import force_str
 from django.utils.dateparse import parse_date, parse_datetime, parse_time
-from django.db.backends.base.base import timezone_constructor
+try:
+    from django.db.backends.base.base import timezone_constructor # Django 4.2
+except ImportError:
+    from django.utils.timezone import timezone as timezone_constructor # Django 5+
 
 from .utils import BulkInsertMapper
 
