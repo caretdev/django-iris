@@ -176,19 +176,24 @@ class DatabaseOperations(BaseDatabaseOperations):
 
         return str(value)
 
-    def field_cast_sql(self, db_type, internal_type):
-        """
-        Given a column type (e.g. 'BLOB', 'VARCHAR') and an internal type
-        (e.g. 'GenericIPAddressField'), return the SQL to cast it before using
-        it in a WHERE statement. The resulting string should contain a '%s'
-        placeholder for the column being searched against.
-        
-        IRIS cannot work with streams directly in WHERE, wrap it with CONVERT
-        """
-        if db_type in ('TEXT', 'LONG BINARY'):
+    # def field_cast_sql(self, db_type, internal_type):
+    #     """
+    #     Given a column type (e.g. 'BLOB', 'VARCHAR') and an internal type
+    #     (e.g. 'GenericIPAddressField'), return the SQL to cast it before using
+    #     it in a WHERE statement. The resulting string should contain a '%s'
+    #     placeholder for the column being searched against.
+
+    #     IRIS cannot work with streams directly in WHERE, wrap it with CONVERT
+    #     """
+    #     if db_type in ('TEXT', 'LONG BINARY'):
+    #         return "CONVERT(VARCHAR, %s)"
+    #     return "%s"
+
+    def lookup_cast(self, lookup_type, internal_type=None):
+        if lookup_type in ('TEXT', 'LONG BINARY'):
             return "CONVERT(VARCHAR, %s)"
         return "%s"
-    
+
     def max_name_length(self):
         """
         Return the maximum length of table and column names, or None if there

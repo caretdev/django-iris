@@ -2,22 +2,23 @@ from django.db.backends.base.features import BaseDatabaseFeatures
 from django.db import InterfaceError
 from django.utils.functional import cached_property
 
+
 class DatabaseFeatures(BaseDatabaseFeatures):
     empty_fetchmany_value = []
 
     requires_literal_defaults = True
-    
+
     supports_paramstyle_pyformat = False
-    
+
     supports_transactions = True
     uses_savepoints = True
-    has_bulk_insert =  True
-    has_native_uuid_field =  False
+    has_bulk_insert = True
+    has_native_uuid_field = True
     supports_timezones = False
     has_zoneinfo_database = False
-    can_clone_databases =  True
+    can_clone_databases = True
     test_db_allows_multiple_connections = False
-    supports_unspecified_pk =  False
+    supports_unspecified_pk = False
     can_return_columns_from_insert = False
 
     # Does the backend support NULLS FIRST and NULLS LAST in ORDER BY?
@@ -60,8 +61,12 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     interprets_empty_strings_as_nulls = False
 
     supports_ignore_conflicts = False
-    
+
     closed_cursor_error_class = InterfaceError
+
+    # Does the backend support functions in defaults?
+    # IRIS, requires ObjectScript there, no way
+    supports_expression_defaults = False
 
     # Does the backend support partial indexes (CREATE INDEX ... WHERE ...)?
     supports_partial_indexes = False
@@ -107,57 +112,65 @@ class DatabaseFeatures(BaseDatabaseFeatures):
         "cs": "EXACT",  # Case-sensitive.
         # "non_default": None,  # Non-default.
         # "swedish_ci": None,  # Swedish case-insensitive.
+        "virtual": None
     }
 
-    django_test_skips = {
-        "IRIS doesn't support Hash functions.": {
-            "db_functions.text.test_md5.MD5Tests.test_basic",
-            "db_functions.text.test_md5.MD5Tests.test_transform",
-            "db_functions.text.test_sha1.SHA1Tests.test_basic",
-            "db_functions.text.test_sha1.SHA1Tests.test_transform",
-            "db_functions.text.test_sha224.SHA224Tests.test_basic",
-            "db_functions.text.test_sha224.SHA224Tests.test_transform",
-            "db_functions.text.test_sha256.SHA256Tests.test_basic",
-            "db_functions.text.test_sha256.SHA256Tests.test_transform",
-            "db_functions.text.test_sha384.SHA384Tests.test_basic",
-            "db_functions.text.test_sha384.SHA384Tests.test_transform",
-            "db_functions.text.test_sha512.SHA512Tests.test_basic",
-            "db_functions.text.test_sha512.SHA512Tests.test_transform",
-        },
-        "Unexpected result for RPAD/LPAD with 0 as length": {
-            "db_functions.text.test_pad.PadTests.test_pad",
-        },
-        "IRIS has bugs with renaming": {
-            "schema.tests.SchemaTests.test_alter_pk_with_self_referential_field",
-            "schema.tests.SchemaTests.test_alter_to_fk",
-            "schema.tests.SchemaTests.test_char_field_with_db_index_to_fk",
-            "schema.tests.SchemaTests.test_db_table",
-            "schema.tests.SchemaTests.test_m2m_repoint_custom",
-            "schema.tests.SchemaTests.test_m2m_repoint_inherited",
-            "schema.tests.SchemaTests.test_m2m_repoint",
-            "schema.tests.SchemaTests.test_rename_referenced_field",
-            "schema.tests.SchemaTests.test_text_field_with_db_index_to_fk",
-            "schema.tests.SchemaTests.test_rename_table_renames_deferred_sql_references",
-            "schema.tests.SchemaTests.test_rename_keep_null_status",
-            "schema.tests.SchemaTests.test_rename_column_renames_deferred_sql_references",
-            "schema.tests.SchemaTests.test_rename",
-        },
-        "IRIS does not care about ASC/DESC in index": {
-            "schema.tests.SchemaTests.test_order_index",
-        },
-        "Bug on IRIS side, add DATE column with default value on existing data": {
-            "schema.tests.SchemaTests.test_add_datefield_and_datetimefield_use_effective_default",
-        },
-        "No idea what's to do here": {
-            "datetimes.tests.DateTimesTests.test_datetimes_ambiguous_and_invalid_times",
-        },
-        "IRIS does not have check contsraints": {
-            "constraints.tests.CheckConstraintTests.test_validate",
-            "constraints.tests.CheckConstraintTests.test_validate_boolean_expressions",
-            "constraints.tests.UniqueConstraintTests.test_validate_expression_condition",
-        }
-    }
-    
+    @cached_property
+    def django_test_skips(self):
+        skips = super().django_test_skips
+        skips.update(
+            {
+                "IRIS doesn't support Hash functions.": {
+                    "db_functions.text.test_md5.MD5Tests.test_basic",
+                    "db_functions.text.test_md5.MD5Tests.test_transform",
+                    "db_functions.text.test_sha1.SHA1Tests.test_basic",
+                    "db_functions.text.test_sha1.SHA1Tests.test_transform",
+                    "db_functions.text.test_sha224.SHA224Tests.test_basic",
+                    "db_functions.text.test_sha224.SHA224Tests.test_transform",
+                    "db_functions.text.test_sha256.SHA256Tests.test_basic",
+                    "db_functions.text.test_sha256.SHA256Tests.test_transform",
+                    "db_functions.text.test_sha384.SHA384Tests.test_basic",
+                    "db_functions.text.test_sha384.SHA384Tests.test_transform",
+                    "db_functions.text.test_sha512.SHA512Tests.test_basic",
+                    "db_functions.text.test_sha512.SHA512Tests.test_transform",
+                },
+                "Unexpected result for RPAD/LPAD with 0 as length": {
+                    "db_functions.text.test_pad.PadTests.test_pad",
+                },
+                "IRIS has bugs with renaming": {
+                    "schema.tests.SchemaTests.test_alter_pk_with_self_referential_field",
+                    "schema.tests.SchemaTests.test_alter_to_fk",
+                    "schema.tests.SchemaTests.test_char_field_with_db_index_to_fk",
+                    "schema.tests.SchemaTests.test_db_table",
+                    "schema.tests.SchemaTests.test_m2m_repoint_custom",
+                    "schema.tests.SchemaTests.test_m2m_repoint_inherited",
+                    "schema.tests.SchemaTests.test_m2m_repoint",
+                    "schema.tests.SchemaTests.test_rename_referenced_field",
+                    "schema.tests.SchemaTests.test_text_field_with_db_index_to_fk",
+                    "schema.tests.SchemaTests.test_rename_table_renames_deferred_sql_references",
+                    "schema.tests.SchemaTests.test_rename_keep_null_status",
+                    "schema.tests.SchemaTests.test_rename_column_renames_deferred_sql_references",
+                    "schema.tests.SchemaTests.test_rename",
+                },
+                "IRIS does not care about ASC/DESC in index": {
+                    "schema.tests.SchemaTests.test_order_index",
+                },
+                "Bug on IRIS side, add DATE column with default value on existing data": {
+                    "schema.tests.SchemaTests.test_add_datefield_and_datetimefield_use_effective_default",
+                },
+                # "No idea what's to do here": {
+                #     "datetimes.tests.DateTimesTests.test_datetimes_ambiguous_and_invalid_times",
+                # },
+                "IRIS does not have check contsraints": {
+                    "constraints.tests.CheckConstraintTests.test_validate",
+                    "constraints.tests.CheckConstraintTests.test_validate_boolean_expressions",
+                    "constraints.tests.UniqueConstraintTests.test_validate_expression_condition",
+                },
+            }
+
+        )
+        return skips
+
     django_test_expected_failures = {
         # IRIS does not support DROP IDENTITY, and changing IDENTITY on fly
         "schema.tests.SchemaTests.test_alter_auto_field_to_char_field",
@@ -167,17 +180,15 @@ class DatabaseFeatures(BaseDatabaseFeatures):
         "schema.tests.SchemaTests.test_alter_int_pk_to_bigautofield_pk",
         "schema.tests.SchemaTests.test_alter_smallint_pk_to_smallautofield_pk",
         "schema.tests.SchemaTests.test_char_field_pk_to_auto_field",
-
         # ADD COLUMN does not create unique indexes
         "schema.tests.SchemaTests.test_indexes",
-
         # Change column datatype to/from TextField (IRIS Streams)
         "schema.tests.SchemaTests.test_alter_text_field_to_time_field",
         "schema.tests.SchemaTests.test_alter_text_field_to_datetime_field",
         "schema.tests.SchemaTests.test_alter_text_field_to_date_field",
     }
 
-    # django_test_skips["IRIS Bugs"] = django_test_expected_failures    
+    # django_test_skips["IRIS Bugs"] = django_test_expected_failures
 
     @cached_property
     def introspected_field_types(self):
