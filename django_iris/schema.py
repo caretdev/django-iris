@@ -7,7 +7,7 @@ from django.db import NotSupportedError, models
 class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
 
     sql_create_table = (
-        "CREATE TABLE %(table)s (%(definition)s)" 
+        "CREATE TABLE %(table)s (%(definition)s)"
         "WITH %%%%CLASSPARAMETER ALLOWIDENTITYINSERT = 1"
     )
 
@@ -39,11 +39,11 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         elif isinstance(value, (Decimal, float, int)):
             return str(value)
         elif isinstance(value, str):
-            return "'%s'" % value.replace("\'", "\'\'")
+            return "'%s'" % value.replace("'", "''")
         elif value is None:
             return "NULL"
         elif isinstance(value, bytes):
-            return "'%s'" % value.decode().replace("\'", "\'\'")
+            return "'%s'" % value.decode().replace("'", "''")
         return value
 
     def quote_name(self, name):
@@ -65,9 +65,9 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         on_delete = getattr(field.remote_field, "on_delete", None)
         stmt = super()._create_fk_sql(model, field, suffix)
         if on_delete == models.CASCADE:
-            stmt = str(stmt) + ' ON DELETE CASCADE'
+            stmt = str(stmt) + " ON DELETE CASCADE"
         if on_delete == models.SET_NULL:
-            stmt = str(stmt) + ' ON DELETE SET NULL'
+            stmt = str(stmt) + " ON DELETE SET NULL"
         return stmt
 
     # def _rename_field_sql(self, table, old_field, new_field, new_type):
@@ -85,7 +85,9 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         self, model, old_field, new_field, new_type, old_collation, new_collation
     ):
 
-        action, other_actions = super()._alter_column_type_sql(model, old_field, new_field, new_type, None, None)
+        action, other_actions = super()._alter_column_type_sql(
+            model, old_field, new_field, new_type, None, None
+        )
         if not new_collation:
             return action, other_actions
 
@@ -98,21 +100,21 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
 
         other_actions += [
             (
-            self.sql_alter_column
-            % {
-                "table": self.quote_name(model._meta.db_table),
-                "changes": (
-                    self.sql_alter_column_collation
-                    % {
-                        "column": self.quote_name(new_field.column),
-                        "collation": collate_sql
-                    }
-                ),
-            },
-            []
+                self.sql_alter_column
+                % {
+                    "table": self.quote_name(model._meta.db_table),
+                    "changes": (
+                        self.sql_alter_column_collation
+                        % {
+                            "column": self.quote_name(new_field.column),
+                            "collation": collate_sql,
+                        }
+                    ),
+                },
+                [],
             )
         ]
-        
+
         return action, other_actions
 
     def _index_condition_sql(self, condition):

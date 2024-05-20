@@ -24,55 +24,56 @@ def ignore(*args, **kwargs):
 class DatabaseClient(BaseDatabaseClient):
     runshell = ignore
 
+
 class DatabaseWrapper(BaseDatabaseWrapper):
-    vendor = 'intersystems'
-    display_name = 'InterSystems IRIS'
+    vendor = "intersystems"
+    display_name = "InterSystems IRIS"
 
     data_types = {
-        'AutoField': 'IDENTITY',
-        'BigAutoField': 'IDENTITY',
-        'BinaryField': 'LONG BINARY',
-        'BooleanField': 'BIT',
-        'CharField': 'VARCHAR(%(max_length)s)',
-        'DateField': 'DATE',
-        'DateTimeField': 'TIMESTAMP',
-        'DecimalField': 'NUMERIC(%(max_digits)s, %(decimal_places)s)',
-        'DurationField': 'BIGINT',
-        'FileField': 'VARCHAR(%(max_length)s)',
-        'FilePathField': 'VARCHAR(%(max_length)s)',
-        'FloatField': 'DOUBLE PRECISION',
-        'IntegerField': 'INTEGER',
-        'BigIntegerField': 'BIGINT',
-        'IPAddressField': 'CHAR(15)',
-        'GenericIPAddressField': 'CHAR(39)',
-        'JSONField': 'VARCHAR(32768)',
-        'OneToOneField': 'INTEGER',
-        'PositiveBigIntegerField': 'BIGINT',
-        'PositiveIntegerField': 'INTEGER',
-        'PositiveSmallIntegerField': 'SMALLINT',
-        'SlugField': 'VARCHAR(%(max_length)s)',
-        'SmallAutoField': 'IDENTITY',
-        'SmallIntegerField': 'SMALLINT',
-        'TextField': 'TEXT',
-        'TimeField': 'TIME(6)',
-        'UUIDField': 'CHAR(32)',
+        "AutoField": "IDENTITY",
+        "BigAutoField": "IDENTITY",
+        "BinaryField": "LONG BINARY",
+        "BooleanField": "BIT",
+        "CharField": "VARCHAR(%(max_length)s)",
+        "DateField": "DATE",
+        "DateTimeField": "TIMESTAMP",
+        "DecimalField": "NUMERIC(%(max_digits)s, %(decimal_places)s)",
+        "DurationField": "BIGINT",
+        "FileField": "VARCHAR(%(max_length)s)",
+        "FilePathField": "VARCHAR(%(max_length)s)",
+        "FloatField": "DOUBLE PRECISION",
+        "IntegerField": "INTEGER",
+        "BigIntegerField": "BIGINT",
+        "IPAddressField": "CHAR(15)",
+        "GenericIPAddressField": "CHAR(39)",
+        "JSONField": "VARCHAR(32768)",
+        "OneToOneField": "INTEGER",
+        "PositiveBigIntegerField": "BIGINT",
+        "PositiveIntegerField": "INTEGER",
+        "PositiveSmallIntegerField": "SMALLINT",
+        "SlugField": "VARCHAR(%(max_length)s)",
+        "SmallAutoField": "IDENTITY",
+        "SmallIntegerField": "SMALLINT",
+        "TextField": "TEXT",
+        "TimeField": "TIME(6)",
+        "UUIDField": "UNIQUEIDENTIFIER",
     }
 
     operators = {
-        'exact': '= %s',
-        'iexact': "LIKE %s ESCAPE '\\'",
-        'contains': "LIKE %s ESCAPE '\\'",
-        'icontains': "LIKE %s ESCAPE '\\'",
+        "exact": "= %s",
+        "iexact": "LIKE %s ESCAPE '\\'",
+        "contains": "LIKE %s ESCAPE '\\'",
+        "icontains": "LIKE %s ESCAPE '\\'",
         # 'regex': "%%%%MATCHES %s ESCAPE '\\'",
         # 'iregex': "%%%%MATCHES %s ESCAPE '\\'",
-        'gt': '> %s',
-        'gte': '>= %s',
-        'lt': '< %s',
-        'lte': '<= %s',
-        'startswith': "LIKE %s ESCAPE '\\'",
-        'endswith': "LIKE %s ESCAPE '\\'",
-        'istartswith': "LIKE %s ESCAPE '\\'",
-        'iendswith': "LIKE %s ESCAPE '\\'",
+        "gt": "> %s",
+        "gte": ">= %s",
+        "lt": "< %s",
+        "lte": "<= %s",
+        "startswith": "LIKE %s ESCAPE '\\'",
+        "endswith": "LIKE %s ESCAPE '\\'",
+        "istartswith": "LIKE %s ESCAPE '\\'",
+        "iendswith": "LIKE %s ESCAPE '\\'",
     }
 
     pattern_esc = r"REPLACE(REPLACE(REPLACE({}, '\', '\\'), '%%', '\%%'), '_', '\_')"
@@ -83,7 +84,6 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "istartswith": "LIKE UPPER({}) || '%%'",
         "endswith": "LIKE '%%' || {}",
         "iendswith": "LIKE '%%' || UPPER({})",
-
     }
 
     Database = Database
@@ -110,62 +110,59 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         settings_dict = self.settings_dict
 
         conn_params = {
-            'username': None,
-            'password': None,
-            'timeout': 30,
+            "username": None,
+            "password": None,
+            "timeout": 30,
         }
-        if settings_dict['USER']:
-            conn_params['username'] = settings_dict['USER']
-        if settings_dict['PASSWORD']:
-            conn_params['password'] = settings_dict['PASSWORD']
-        if 'TIMEOUT' in settings_dict:
-            conn_params['timeout'] = settings_dict['TIMEOUT']
-        if 'EMBEDDED' in settings_dict:
-            conn_params['embedded'] = settings_dict['EMBEDDED']
-        if 'CONNECTION_STRING' in settings_dict:
-            conn_params['connectionstr'] = settings_dict['CONNECTION_STRING']
+        if settings_dict["USER"]:
+            conn_params["username"] = settings_dict["USER"]
+        if settings_dict["PASSWORD"]:
+            conn_params["password"] = settings_dict["PASSWORD"]
+        if "TIMEOUT" in settings_dict:
+            conn_params["timeout"] = settings_dict["TIMEOUT"]
+        if "EMBEDDED" in settings_dict:
+            conn_params["embedded"] = settings_dict["EMBEDDED"]
+        if "CONNECTION_STRING" in settings_dict:
+            conn_params["connectionstr"] = settings_dict["CONNECTION_STRING"]
         else:
             conn_params = {
-                'hostname': 'localhost',
-                'port': 1972,
-                'namespace': 'USER',
+                "hostname": "localhost",
+                "port": 1972,
+                "namespace": "USER",
                 **conn_params,
             }
-            if settings_dict['HOST']:
-                conn_params['hostname'] = settings_dict['HOST']
-            if settings_dict['PORT']:
-                conn_params['port'] = settings_dict['PORT']
-            if 'NAMESPACE' in settings_dict:
-                conn_params['namespace'] = settings_dict['NAMESPACE']
-            if settings_dict['NAME']:
-                conn_params['namespace'] = settings_dict['NAME']
+            if settings_dict["HOST"]:
+                conn_params["hostname"] = settings_dict["HOST"]
+            if settings_dict["PORT"]:
+                conn_params["port"] = settings_dict["PORT"]
+            if "NAMESPACE" in settings_dict:
+                conn_params["namespace"] = settings_dict["NAMESPACE"]
+            if settings_dict["NAME"]:
+                conn_params["namespace"] = settings_dict["NAME"]
 
             if (
-                not conn_params['hostname'] or
-                not conn_params['port'] or
-                not conn_params['namespace']
+                not conn_params["hostname"]
+                or not conn_params["port"]
+                or not conn_params["namespace"]
             ):
                 raise ImproperlyConfigured(
                     "settings.DATABASES is improperly configured. "
                     "Please supply the HOST, PORT and NAME"
                 )
 
-        if (
-            not conn_params['username'] or
-            not conn_params['password']
-        ):
+        if not conn_params["username"] or not conn_params["password"]:
             raise ImproperlyConfigured(
                 "settings.DATABASES is improperly configured. "
                 "Please supply the USER and PASSWORD"
             )
 
-        conn_params['application_name'] = 'django'
+        conn_params["application_name"] = "django"
         conn_params["autoCommit"] = self.autocommit
         return conn_params
 
     def init_connection_state(self):
         pass
-    
+
     @async_unsafe
     def get_new_connection(self, conn_params):
         return Database.connect(**conn_params)
@@ -186,7 +183,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     def is_usable(self):
         try:
             with self.connection.cursor() as cursor:
-                cursor.execute('SELECT 1')
+                cursor.execute("SELECT 1")
         except:
             return False
         else:
