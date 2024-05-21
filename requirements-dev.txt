@@ -3,3 +3,5 @@ flake8
 pytest
 black
 twine
+testcontainers_iris
+requests<2.32.0

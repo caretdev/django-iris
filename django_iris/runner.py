@@ -5,6 +5,9 @@ from testcontainers.iris import IRISContainer
 
 class IRISDiscoverRunner(DiscoverRunner):
     _iris_container: IRISContainer
+    _iris_user: str
+    _iris_password: str
+    _iris_namespace: str
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -12,15 +15,20 @@ class IRISDiscoverRunner(DiscoverRunner):
         iris_image = getattr(
             settings, "IRIS_IMAGE", "intersystemsdc/iris-community:latest"
         )
-        iris_user = getattr(settings, "IRIS_USERNAME", "_SYSTEM")
-        iris_password = getattr(settings, "IRIS_PASSWORD", "SYS")
+        iris_key = getattr(settings, "IRIS_KEY", None)
+        self._iris_user = getattr(settings, "IRIS_USERNAME", "DJANGO")
+        self._iris_password = getattr(settings, "IRIS_PASSWORD", "django")
         iris_name = getattr(settings, "IRIS_NAMESPACE", "USER")
+        extra = {}
+        if iris_key:
+            extra["license_key"] = iris_key
 
         self._iris_container = IRISContainer(
             image=iris_image,
-            username=iris_user,
-            password=iris_password,
+            username=self._iris_user,
+            password=self._iris_password,
             namespace=iris_name,
+            **extra
         )
 
     def _setup_container(self):
@@ -35,6 +43,8 @@ class IRISDiscoverRunner(DiscoverRunner):
             settings.DATABASES[database]["PORT"] = int(
                 self._iris_container.get_exposed_port(1972)
             )
+            settings.DATABASES[database]["USER"] = self._iris_user
+            settings.DATABASES[database]["PASSWORD"] = self._iris_password
 
     def _teardown_container(self):
         self._iris_container.stop()
