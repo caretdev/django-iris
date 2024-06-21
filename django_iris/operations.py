@@ -1,4 +1,3 @@
-import imp
 from django.conf import settings
 from django.db import DatabaseError
 from django.db.backends.base.operations import BaseDatabaseOperations
