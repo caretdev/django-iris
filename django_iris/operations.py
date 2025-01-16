@@ -3,30 +3,31 @@ from django.db import DatabaseError
 from django.db.backends.base.operations import BaseDatabaseOperations
 from django.db.backends.utils import split_tzname_delta
 from django.utils import timezone
-from itertools import chain
-from datetime import date, datetime,timedelta
-from django.utils.encoding import force_str
+from datetime import date, datetime, timedelta
 from django.utils.dateparse import parse_date, parse_datetime, parse_time
+from django.db.models.expressions import RawSQL, ExpressionWrapper, Exists
+from django.db.models.lookups import Lookup
+from django.db.models.sql.where import WhereNode
+
 try:
-    from django.db.backends.base.base import timezone_constructor # Django 4.2
+    from django.db.backends.base.base import timezone_constructor  # Django 4.2
 except ImportError:
-    from django.utils.timezone import timezone as timezone_constructor # Django 5+
+    from django.utils.timezone import timezone as timezone_constructor  # Django 5+
 
 from .utils import BulkInsertMapper
+
 
 class DatabaseOperations(BaseDatabaseOperations):
 
     compiler_module = "django_iris.compiler"
 
-    cast_data_types = {
-        "TextField": "VARCHAR"
-    }
+    cast_data_types = {"TextField": "VARCHAR"}
 
     def quote_name(self, name):
         if name.startswith('"') and name.endswith('"'):
             return name  # Quoting once is enough.
-        if '.' in name:
-            return ".".join(['"%s"' % n for n in name.split('.')])
+        if "." in name:
+            return ".".join(['"%s"' % n for n in name.split(".")])
         return '"%s"' % name
 
     # def last_insert_id(self, cursor, table_name, pk_name):
@@ -65,20 +66,20 @@ class DatabaseOperations(BaseDatabaseOperations):
                 )
                 for table_name in tables
             )
-        
+
         return sql
 
     def no_limit_value(self):
         return None
 
     def limit_offset_sql(self, low_mark, high_mark):
-        return ''
+        return ""
 
     def adapt_datetimefield_value(self, value):
         if value is None:
-            return None       # Expression values are adapted by the database.
+            return None  # Expression values are adapted by the database.
 
-        if hasattr(value, 'resolve_expression'):
+        if hasattr(value, "resolve_expression"):
             return value
 
         if timezone.is_aware(value):
@@ -93,9 +94,9 @@ class DatabaseOperations(BaseDatabaseOperations):
         return str(value)
         value = int(value.timestamp() * 1000000)
         if value >= 0:
-            value += 2 ** 60
+            value += 2**60
         else:
-            value += -(2 ** 61 * 3)
+            value += -(2**61 * 3)
 
         return str(value)
         # return str(value).split("+")[0]
@@ -112,25 +113,23 @@ class DatabaseOperations(BaseDatabaseOperations):
         elif internal_type == "BooleanField":
             converters.append(self.convert_booleanfield_value)
         return converters
-    
+
     def convert_booleanfield_value(self, value, expression, connection):
         if value in (0, 1):
             value = bool(value)
         return value
 
-
     def convert_datetimefield_value(self, value, expression, connection):
-        original = value
         if value is not None:
             if isinstance(value, int):
                 if value > 0:
-                    value -= 2 ** 60
+                    value -= 2**60
                 else:
-                    value -= -(2 ** 61 * 3)
+                    value -= -(2**61 * 3)
                 value = value / 1000000
                 value = datetime.fromtimestamp(value)
             elif isinstance(value, str):
-                if value != '':
+                if value != "":
                     value = parse_datetime(value)
         if value is not None:
             if settings.USE_TZ and not timezone.is_aware(value):
@@ -142,8 +141,8 @@ class DatabaseOperations(BaseDatabaseOperations):
             if not isinstance(value, type(datetime.date)):
                 try:
                     value = int(value)
-                    value=date.fromordinal(672046+value)
-                except:
+                    value = date.fromordinal(672046 + value)
+                except Exception:
                     value = parse_date(value)
         return value
 
@@ -154,15 +153,21 @@ class DatabaseOperations(BaseDatabaseOperations):
                     value = int(value)
                     value = timedelta(seconds=value)
                     value = (datetime.min + value).time()
-                except:
+                except Exception:
                     value = parse_time(value)
         return value
 
     def conditional_expression_supported_in_where_clause(self, expression):
+        if isinstance(expression, (Exists, Lookup, WhereNode)):
+            return True
+        if isinstance(expression, ExpressionWrapper) and expression.conditional:
+            return self.conditional_expression_supported_in_where_clause(expression.expression)
+        if isinstance(expression, RawSQL) and expression.conditional:
+            return True
         return False
 
     def adapt_datefield_value(self, value):
-        if value == None:
+        if value is None:
             return None
         return str(value)
 
@@ -189,7 +194,7 @@ class DatabaseOperations(BaseDatabaseOperations):
     #     return "%s"
 
     def lookup_cast(self, lookup_type, internal_type=None):
-        if lookup_type in ('TEXT', 'LONG BINARY'):
+        if lookup_type in ("TEXT", "LONG BINARY"):
             return "CONVERT(VARCHAR, %s)"
         return "%s"
 
@@ -199,15 +204,15 @@ class DatabaseOperations(BaseDatabaseOperations):
         is no limit.
         """
         return 60
-    
+
     def date_extract_sql(self, lookup_type, sql, params):
         if lookup_type == "week_day":
-            param = 'dw'
+            param = "dw"
         elif lookup_type == "iso_week_day":
-            param = 'dw'
+            param = "dw"
             return f"DATEPART({param}, {sql}) - 1", params
         elif lookup_type == "iso_year":
-            param = 'yyyy'
+            param = "yyyy"
         else:
             param = lookup_type
         return f"DATEPART({param}, CAST({sql} AS TIMESTAMP))", params
@@ -239,7 +244,7 @@ class DatabaseOperations(BaseDatabaseOperations):
                     diff,
                     *params,
                 )
-            except:
+            except Exception:
                 pass
         return sql, params
 
@@ -254,16 +259,15 @@ class DatabaseOperations(BaseDatabaseOperations):
     def date_trunc_sql(self, lookup_type, sql, params, tzname=None):
         sql, params = self._convert_sql_to_tz(sql, params, tzname)
         sql = f"CAST({sql} as DATE)"
-        
-        if lookup_type == 'year':
+
+        if lookup_type == "year":
             return f"CAST(TO_CHAR(DATE({sql}), 'YYYY-01-01') AS DATE)", params
-        if lookup_type == 'month':
+        if lookup_type == "month":
             return f"CAST(TO_CHAR(DATE({sql}), 'YYYY-MM-01') AS DATE)", params
         if lookup_type == "week":
             return (
                 f"CAST(DATEADD(DAY, - ((DATEPART(WEEKDAY, {sql}) + 5) # 7 ), {sql}) AS DATE)"
-            ), (*params, )
-       
+            ), (*params,)
 
         return f"DATE({sql})", params
 
@@ -288,7 +292,7 @@ class DatabaseOperations(BaseDatabaseOperations):
         else:
             format_str = "".join(format[:i] + format_def[i:])
             return f"CAST(TO_CHAR({sql}, %s) AS TIMESTAMP)", (*params, format_str)
-        
+
         return sql, params
 
     def time_trunc_sql(self, lookup_type, sql, params, tzname=None):
@@ -311,7 +315,10 @@ class DatabaseOperations(BaseDatabaseOperations):
             last_params = cursor._params.collect()
             if last_params and len(last_params) > 0:
                 for i in range(len(last_params)):
-                    statement = statement.replace(f":%qpar({i+1})", 'NULL' if last_params[i] is None else repr(last_params[i]))
+                    statement = statement.replace(
+                        f":%qpar({i+1})",
+                        "NULL" if last_params[i] is None else repr(last_params[i]),
+                    )
             statement = statement.replace(" . ", ".")
             statement = statement.replace(" ,", ",")
             statement = statement.replace(" )", ")")
@@ -354,3 +361,8 @@ class DatabaseOperations(BaseDatabaseOperations):
         if len(sub_expressions) > 3:
             raise ValueError("Too many params for timedelta operations.")
         return "DATEADD(%s)" % ", ".join(fn_params)
+
+    def regex_lookup(self, lookup_type):
+        raise NotImplementedError(
+            "IRIS does not support regex"
+        )

@@ -1,15 +1,81 @@
+import itertools
+
 from django.core.exceptions import EmptyResultSet, FullResultSet
-from django.db.models.expressions import Col, Value
+from django.db.models.expressions import RawSQL
+from django.db.models.sql.where import AND
 from django.db.models.sql import compiler
+from django.db.models.fields.json import KeyTransform
+from django.db.models.expressions import DatabaseDefault
+
+
+class Flag:
+    value = False
+
+    def __init__(self, value):
+        self.value = value
+
+    def __enter__(self):
+        self.value = True
+        return True
+
+    def __exit__(self, *args):
+        self.value = False
+
+    def __bool__(self):
+        return self.value
+
 
 class SQLCompiler(compiler.SQLCompiler):
+    in_get_select = Flag(False)
+    in_get_order_by = Flag(False)
+#     def get_from_clause(self):
+#         result, params = super().get_from_clause()
+#         jsoncolumns = {}
+#         for column in self.query.select + tuple(
+#             [column for column in (col.lhs for col in self.query.where.children)]
+#         ):
+#             if isinstance(column, KeyTransform):
+#                 if column.field.name not in jsoncolumns:
+#                     jsoncolumns[column.field.name] = {}
+#                 jsoncolumns[column.field.name][
+#                     column.key_name
+#                 ] = f"{column.field.name}__{column.key_name}"
+#         []
+#         for field in jsoncolumns:
+#             self.query.where.add(RawSQL("%s is not null" % (field,), []), AND)
+#             cols = ", ".join(
+#                 [
+#                     f"{jsoncolumns[field][col_name]} VARCHAR PATH '$.{col_name}'"
+#                     for col_name in jsoncolumns[field]
+#                 ]
+#             )
+#             result.append(
+#                 f"""
+# , JSON_TABLE("{column.field.name}", '$' COLUMNS(
+# {cols}
+# ))
+# """
+#             )
+
+#         if "model_fields_nullablejsonmodel" in self.query.alias_map:
+#             breakpoint()
+#         return result, params
+
+    def get_select(self, with_col_aliases=False):
+        with self.in_get_select:
+            return super().get_select(with_col_aliases)
+
+    def get_order_by(self):
+        with self.in_get_order_by:
+            return super().get_order_by()
 
     def as_sql(self, with_limits=True, with_col_aliases=False):
         with_limit_offset = (with_limits or self.query.is_sliced) and (
             self.query.high_mark is not None or self.query.low_mark > 0
         )
         if self.query.select_for_update or not with_limit_offset:
-            return super().as_sql(with_limits, with_col_aliases)
+            query, params = super().as_sql(with_limits, with_col_aliases)
+            return query, params
         try:
             extra_select, order_by, group_by = self.pre_sql_setup()
 
@@ -79,7 +145,10 @@ class SQLCompiler(compiler.SQLCompiler):
                 order_by_result = "ORDER BY %s" % first_col
 
             if offset:
-                out_cols.append("ROW_NUMBER() %s AS row_number" % ("OVER (%s)" % order_by_result if order_by_result else ""))
+                out_cols.append(
+                    "ROW_NUMBER() %s AS row_number"
+                    % ("OVER (%s)" % order_by_result if order_by_result else "")
+                )
 
             result += [", ".join(out_cols), "FROM", *from_]
             params.extend(f_params)
@@ -154,19 +223,32 @@ class SQLCompiler(compiler.SQLCompiler):
                 ), tuple(sub_params + params)
 
             if offset:
-                query = "SELECT * FROM (%s) WHERE row_number between %d AND %d ORDER BY row_number" % (
-                    query,
-                    offset,
-                    limit,
+                query = (
+                    "SELECT * FROM (%s) WHERE row_number between %d AND %d ORDER BY row_number"
+                    % (
+                        query,
+                        offset,
+                        limit,
+                    )
                 )
             return query, tuple(params)
-        except:
-            return super().as_sql(with_limits, with_col_aliases)
+        except Exception:
+            query, params = super().as_sql(with_limits, with_col_aliases)
+            return query, params
 
 
 class SQLInsertCompiler(compiler.SQLInsertCompiler, SQLCompiler):
-    
+
     def as_sql(self):
+
+        if self.query.fields:
+            fields = self.query.fields
+            self.query.fields = [
+                field
+                for field in fields
+                if not isinstance(self.pre_save_val(field, self.query.objs[0]), DatabaseDefault)
+            ]
+
         if self.query.fields:
             return super().as_sql()
 
@@ -195,7 +277,7 @@ class SQLUpdateCompiler(compiler.SQLUpdateCompiler, SQLCompiler):
         if self.connection._disable_constraint_checking:
             sql = "UPDATE %%NOCHECK" + sql[6:]
         return sql, params
-    
+
 
 class SQLAggregateCompiler(compiler.SQLAggregateCompiler, SQLCompiler):
     pass

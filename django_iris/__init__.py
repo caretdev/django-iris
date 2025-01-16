@@ -2,7 +2,14 @@ from django.db.models.functions.math import Random, Ln, Log
 from django.db.models.functions.datetime import Now
 from django.db.models.expressions import Exists, Func, Value, Col, OrderBy
 from django.db.models.functions.text import Chr, ConcatPair, StrIndex
+from django.db.models.functions import Cast
 from django.db.models.fields import TextField, CharField
+from django.db.models.lookups import BuiltinLookup
+from django.db.models.fields.json import (
+    KeyTransform,
+    KeyTransformExact,
+    compile_json_path,
+)
 
 from django_iris.compiler import SQLCompiler
 
@@ -65,7 +72,8 @@ def convert_streams(expressions):
 
 @as_intersystems(Exists)
 def exists_as_intersystems(self, compiler, connection, template=None, **extra_context):
-    template = "(SELECT COUNT(*) FROM (%(subquery)s))"
+    # template = "(SELECT COUNT(*) FROM (%(subquery)s))"
+    template = "EXISTS %(subquery)s"
     return self.as_sql(compiler, connection, template, **extra_context)
 
 
@@ -151,3 +159,37 @@ def orderby_as_intersystems(self, compiler, connection, **extra_context):
     # IRIS does not support order NULL
     copy.nulls_first = copy.nulls_last = False
     return copy.as_sql(compiler, connection, **extra_context)
+
+
+@as_intersystems(KeyTransformExact)
+def json_KeyTransformExact_as_intersystems(self, compiler, connection):
+    return self.as_sql(compiler, connection)
+
+
+@as_intersystems(KeyTransform)
+def json_KeyTransform_as_intersystems(self, compiler, connection):
+    # breakpoint()
+    # json_path = compile_json_path(key_transforms)
+    return f"{self.field.name}__{self.key_name}", []
+
+
+@as_intersystems(BuiltinLookup)
+def BuiltinLookup_as_intersystems(self, compiler, connection):
+    sql, params = self.as_sql(compiler, connection)
+    if compiler.in_get_order_by:
+        return "CASE WHEN %s THEN 1 ELSE 0 END" % (sql,), params
+    # if not compiler.in_get_select and not compiler.in_get_order_by:
+    return sql, params
+
+
+@as_intersystems(Cast)
+def cast_as_intersystems(self, compiler, connection, **extra_context):
+    if hasattr(self.source_expressions[0], "lookup_name"):
+        if self.source_expressions[0].lookup_name in ["gt", "gte", "lt", "lte"]:
+            return self.as_sql(
+                compiler,
+                connection,
+                template="CASE WHEN %(expressions)s THEN 1 ELSE 0 END",
+                **extra_context,
+            )
+    return self.as_sql(compiler, connection, **extra_context)

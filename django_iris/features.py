@@ -84,7 +84,7 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     only_supports_unbounded_with_preceding_and_following = False
 
     # Does the backend support JSONField?
-    supports_json_field = False
+    supports_json_field = True
     # Can the backend introspect a JSONField?
     can_introspect_json_field = False
     # Does the backend support primitives in JSONField?
@@ -106,13 +106,15 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     supports_collation_on_charfield = True
     supports_collation_on_textfield = False
 
+    supports_boolean_expr_in_select_clause = False
+
     # Collation names for use by the Django test suite.
     test_collations = {
         # "ci": None,  # Case-insensitive.
         "cs": "EXACT",  # Case-sensitive.
         # "non_default": None,  # Non-default.
         # "swedish_ci": None,  # Swedish case-insensitive.
-        "virtual": None
+        "virtual": None,
     }
 
     @cached_property
@@ -162,12 +164,23 @@ class DatabaseFeatures(BaseDatabaseFeatures):
                 #     "datetimes.tests.DateTimesTests.test_datetimes_ambiguous_and_invalid_times",
                 # },
                 "IRIS does not have check contsraints": {
+                    "model_fields.test_jsonfield.JSONFieldTests.test_db_check_constraints",
                     "constraints.tests.CheckConstraintTests.test_validate",
                     "constraints.tests.CheckConstraintTests.test_validate_boolean_expressions",
                     "constraints.tests.UniqueConstraintTests.test_validate_expression_condition",
                 },
+                "Does not support expressions in default": {
+                    "field_defaults.tests.DefaultTests.test_full_clean",
+                    "basic.tests.ModelInstanceCreationTests.test_save_primary_with_db_default",
+                },
+                "Regex not supported": {
+                    "lookup.tests.LookupTests.test_regex",
+                    "lookup.tests.LookupTests.test_regex_backreferencing",
+                    "lookup.tests.LookupTests.test_regex_non_ascii",
+                    "lookup.tests.LookupTests.test_regex_non_string",
+                    "lookup.tests.LookupTests.test_regex_null",
+                },
             }
-
         )
         return skips
 
@@ -186,6 +199,19 @@ class DatabaseFeatures(BaseDatabaseFeatures):
         "schema.tests.SchemaTests.test_alter_text_field_to_time_field",
         "schema.tests.SchemaTests.test_alter_text_field_to_datetime_field",
         "schema.tests.SchemaTests.test_alter_text_field_to_date_field",
+        #
+        "lookup.tests.LookupQueryingTests.test_filter_exists_lhs",
+        "lookup.tests.LookupQueryingTests.test_filter_lookup_lhs",
+        "lookup.tests.LookupQueryingTests.test_filter_subquery_lhs",
+        "lookup.tests.LookupQueryingTests.test_filter_wrapped_lookup_lhs",
+        "lookup.tests.LookupTests.test_lookup_rhs",
+
+        "lookup.tests.LookupTests.test_regex",
+        "lookup.tests.LookupTests.test_regex_backreferencing",
+        "lookup.tests.LookupTests.test_regex_non_ascii",
+        "lookup.tests.LookupTests.test_regex_non_string",
+        "lookup.tests.LookupTests.test_regex_null",
+
     }
 
     # django_test_skips["IRIS Bugs"] = django_test_expected_failures
